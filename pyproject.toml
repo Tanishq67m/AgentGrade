@@ -1,0 +1,34 @@
+[project]
+name = "agentgrade"
+version = "0.0.1"
+description = "Evaluate whether AI agents can successfully use a product through its MCP server."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Tanishq Mohod" }]
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentgrade"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F = pycodestyle + pyflakes basics, I = import sorting, B = common bug patterns, UP = modern syntax
+select = ["E", "F", "I", "B", "UP"]

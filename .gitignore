@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments (uv creates .venv)
+.venv/
+venv/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets - never commit
+.env
+.env.*
+!.env.example
+
+# AgentGrade run output (traces can be large; commit selected results deliberately)
+runs/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
