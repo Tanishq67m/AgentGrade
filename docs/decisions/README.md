@@ -15,5 +15,6 @@ An accepted record is never edited to change the decision - write a new record t
 | [0006](0006-repository-and-license.md) | Public GitHub repo, owner pushes manually, MIT license | Accepted |
 | [0007](0007-agent-loop-design.md) | Async agent loop, Pydantic types, jsonschema validation, errors fed back, httpx Ollama adapter | Accepted (amended by 0008) |
 | [0008](0008-thinking-models.md) | Separate model reasoning from answers; default model `qwen3:4b-instruct` | Accepted |
+| [0009](0009-mcp-client.md) | Official MCP SDK v2, MCP tools adapted into `Tool`, explicit read-only allowlist, pinned server | Accepted |
 
 Template: [TEMPLATE.md](TEMPLATE.md)

@@ -15,6 +15,7 @@ from typing import Any, Literal
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
+from jsonschema.validators import validator_for
 from pydantic import BaseModel
 
 from agentgrade.types import ToolCall, ToolSpec
@@ -51,19 +52,22 @@ class ToolResult(BaseModel):
 class ToolRegistry:
     def __init__(self, tools: list[Tool] | None = None) -> None:
         self._tools: dict[str, Tool] = {}
-        self._validators: dict[str, Draft202012Validator] = {}
+        self._validators: dict[str, Any] = {}
         for tool in tools or []:
             self.register(tool)
 
     def register(self, tool: Tool) -> None:
         if tool.name in self._tools:
             raise ValueError(f"Tool already registered: {tool.name!r}")
+        # Honour the schema's own "$schema" draft (MCP servers often send draft-07);
+        # default to 2020-12 when it doesn't say.
+        validator_cls = validator_for(tool.input_schema, default=Draft202012Validator)
         try:
-            Draft202012Validator.check_schema(tool.input_schema)
-        except SchemaError as exc:  # a broken schema is our bug - fail loudly at startup
+            validator_cls.check_schema(tool.input_schema)
+        except SchemaError as exc:  # a broken schema must fail loudly at startup
             raise ValueError(f"Invalid input_schema for tool {tool.name!r}: {exc.message}") from exc
         self._tools[tool.name] = tool
-        self._validators[tool.name] = Draft202012Validator(tool.input_schema)
+        self._validators[tool.name] = validator_cls(tool.input_schema)
 
     def specs(self) -> list[ToolSpec]:
         return [tool.spec for tool in self._tools.values()]

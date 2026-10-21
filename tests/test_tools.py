@@ -68,3 +68,15 @@ def test_broken_schema_is_rejected_at_registration():
     bad = Tool(name="t", description="d", input_schema={"type": "not-a-type"}, func=lambda: None)
     with pytest.raises(ValueError, match="Invalid input_schema"):
         ToolRegistry([bad])
+
+
+async def test_draft07_schemas_from_mcp_servers_are_supported():
+    schema = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {"path": {"type": "string"}},
+        "required": ["path"],
+    }
+    registry = ToolRegistry([Tool(name="read", description="d", input_schema=schema, func=str)])
+    result = await registry.execute(ToolCall(id="1", name="read", arguments={}))
+    assert result.error_type == "invalid_arguments"

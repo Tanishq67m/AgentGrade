@@ -15,10 +15,14 @@ from agentgrade.types import Message, ModelResponse, ToolCall, ToolSpec, Usage
 _ids = itertools.count(1)
 
 
-def call_tool(name: str, usage: Usage | None = None, **arguments: Any) -> ModelResponse:
-    """Build a response in which the model requests one tool call."""
+def call_tool(tool_name: str, /, *, usage: Usage | None = None, **arguments: Any) -> ModelResponse:
+    """Build a response in which the model requests one tool call.
+
+    `tool_name` is positional-only (the `/`), so a tool argument that is itself called
+    `name` - e.g. call_tool("read_note", name="todo") - lands in `arguments`, not here.
+    """
     return ModelResponse(
-        tool_calls=[ToolCall(id=f"call_{next(_ids)}", name=name, arguments=arguments)],
+        tool_calls=[ToolCall(id=f"call_{next(_ids)}", name=tool_name, arguments=arguments)],
         usage=usage or Usage(),
     )
 

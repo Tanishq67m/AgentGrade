@@ -130,3 +130,11 @@ async def test_thinking_is_kept_in_steps_but_not_sent_back_or_used_as_answer(reg
     assert result.steps[0].response.thinking == "I should look up the order first."
     sent_back = " ".join(m.content for m in model.received[1])
     assert "look up the order first" not in sent_back
+
+
+def test_regression_fake_call_tool_accepts_an_argument_called_name():
+    # Bug found in M2: call_tool("read_note", name="todo") raised
+    # "got multiple values for argument 'name'".
+    response = call_tool("read_note", name="todo")
+    assert response.tool_calls[0].name == "read_note"
+    assert response.tool_calls[0].arguments == {"name": "todo"}

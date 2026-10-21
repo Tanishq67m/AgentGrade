@@ -9,6 +9,7 @@ authors = [{ name = "Tanishq Mohod" }]
 dependencies = [
     "httpx>=0.27",
     "jsonschema>=4.23",
+    "mcp>=2.3,<3",  # v2 API (Client, MCPServer); v1 is incompatible
     "pydantic>=2.9",
 ]
 
