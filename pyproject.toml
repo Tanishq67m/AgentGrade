@@ -11,7 +11,11 @@ dependencies = [
     "jsonschema>=4.23",
     "mcp>=2.3,<3",  # v2 API (Client, MCPServer); v1 is incompatible
     "pydantic>=2.9",
+    "pyyaml>=6.0",
 ]
+
+[project.scripts]
+agentgrade = "agentgrade.cli:main"
 
 [dependency-groups]
 dev = [
@@ -40,3 +44,9 @@ target-version = "py312"
 [tool.ruff.lint]
 # E/F = pycodestyle + pyflakes basics, I = import sorting, B = common bug patterns, UP = modern syntax
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# markdown table templates read better unwrapped
+"src/agentgrade/report.py" = ["E501"]
+# parametrize tables of invalid suite fragments
+"tests/test_suite.py" = ["E501"]

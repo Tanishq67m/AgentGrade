@@ -17,5 +17,6 @@ An accepted record is never edited to change the decision - write a new record t
 | [0008](0008-thinking-models.md) | Separate model reasoning from answers; default model `qwen3:4b-instruct` | Accepted |
 | [0009](0009-mcp-client.md) | Official MCP SDK v2, MCP tools adapted into `Tool`, explicit read-only allowlist, pinned server | Accepted |
 | [0010](0010-run-tracing.md) | JSONL run traces, environment + model digest capture, whole-word secret redaction, numeric answer check | Accepted |
+| [0011](0011-suites-variants-reports.md) | YAML suites, one-change variants (tool subset / description overrides), repeats, failure classification, Wilson-interval reports | Accepted |
 
 Template: [TEMPLATE.md](TEMPLATE.md)

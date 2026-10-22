@@ -105,9 +105,23 @@ class McpConnection:
             raise McpToolError(text)
         return text
 
-    def agent_tools(self, allow: Iterable[str], *, allow_non_read_only: bool = False) -> list[Tool]:
-        """Wrap allowlisted server tools as agentgrade Tools for the ToolRegistry."""
+    def agent_tools(
+        self,
+        allow: Iterable[str],
+        *,
+        allow_non_read_only: bool = False,
+        description_overrides: dict[str, str] | None = None,
+    ) -> list[Tool]:
+        """Wrap allowlisted server tools as agentgrade Tools for the ToolRegistry.
+
+        `description_overrides` replaces what the MODEL is told about a tool, without touching
+        the server - so a better description can be evaluated before it is shipped.
+        """
         allow = list(allow)
+        overrides = description_overrides or {}
+        stray = sorted(set(overrides) - set(allow))
+        if stray:
+            raise ToolPolicyError(f"Description overrides for tools not in the allowlist: {stray}")
         by_name = {t.name: t for t in self.tools}
 
         missing = [name for name in allow if name not in by_name]
@@ -125,15 +139,15 @@ class McpConnection:
                     "read-only (ADR 0005); pass allow_non_read_only=True only for a vetted reason."
                 )
 
-        return [self._wrap(by_name[name]) for name in allow]
+        return [self._wrap(by_name[name], overrides.get(name)) for name in allow]
 
-    def _wrap(self, info: McpToolInfo) -> Tool:
+    def _wrap(self, info: McpToolInfo, description: str | None = None) -> Tool:
         async def call(**arguments: Any) -> str:
             return await self.call_tool_text(info.name, arguments)
 
         return Tool(
             name=info.name,
-            description=info.description,
+            description=description if description is not None else info.description,
             input_schema=info.input_schema,
             func=call,
         )

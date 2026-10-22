@@ -20,6 +20,7 @@ from typing import Any
 from pydantic import BaseModel
 
 REDACTED = "[REDACTED]"
+RESERVED_KEYS = frozenset({"seq", "ts", "type"})  # the event envelope
 
 # A key is secret if one of its *words* is a secret word, or two adjacent words form one.
 # Whole words, not substrings: "access_token" is secret, "input_tokens" is not
@@ -80,9 +81,14 @@ class TraceWriter:
     def run_id(self) -> str:
         return self.path.parent.name
 
-    def event(self, type: str, **data: Any) -> None:
+    def event(self, event_type: str, /, **data: Any) -> None:
+        # `/` = positional-only, so data may never collide with the parameter name, and the
+        # envelope keys can never be silently overwritten by data (bug found in M4).
+        reserved = RESERVED_KEYS & data.keys()
+        if reserved:
+            raise ValueError(f"Trace data may not use reserved keys: {sorted(reserved)}")
         self._seq += 1
-        record = {"seq": self._seq, "ts": datetime.now(UTC).isoformat(), "type": type}
+        record = {"seq": self._seq, "ts": datetime.now(UTC).isoformat(), "type": event_type}
         record.update(redact(data))
         self._file.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
         self._file.flush()  # on disk now - survives a crash later in the run

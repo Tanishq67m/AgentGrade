@@ -43,9 +43,11 @@ class ScriptedModel:
         # Snapshot of what the model was sent on each call - lets tests assert that
         # tool results really were fed back into the conversation.
         self.received: list[list[Message]] = []
+        self.received_tools: list[list[ToolSpec]] = []  # what the model was told about tools
 
     async def complete(self, messages: list[Message], tools: list[ToolSpec]) -> ModelResponse:
         self.received.append([m.model_copy(deep=True) for m in messages])
+        self.received_tools.append(list(tools))
         if not self._responses:
             raise ScriptExhaustedError(f"No scripted response left for call #{len(self.received)}")
         return self._responses.pop(0)

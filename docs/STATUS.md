@@ -3,8 +3,9 @@
 _Last updated: 2026-10-21_
 
 ## Current objective
-**Milestone 3 - agent loop over MCP tools + trace recording.** Done: first real traced run
-completed (FAIL - see results). Optional ablation experiment (`--tools`) pending, then M4.
+**Milestone 4 - suites, variants, repeated runs, failure classification, reports.** Code + tests
+done; whole pipeline verified on the real filesystem server with staged (scripted) agents. First real
+suite run on the Mac (`agentgrade run suites/shop.yaml`) pending - that run is the showcase.
 
 ## Completed
 - **M0** - repo foundation (ADRs 0001-0006).
@@ -14,7 +15,10 @@ completed (FAIL - see results). Optional ablation experiment (`--tools`) pending
 - **M2** - MCP client over stdio, read-only allowlist, fixture server (ADR 0009). Verified on the Mac:
   14 tools offered, 6 exposed; write blocked by the allowlist, `/etc/passwd` blocked by the server sandbox.
 - **M3 (code)** - JSONL traces, environment/model/server capture, secret redaction, numeric answer
-  check, `mcp_agent_demo` (ADR 0010), `--tools` flag to narrow the allowlist. 84 tests passing.
+  check, `mcp_agent_demo` (ADR 0010), `--tools` flag to narrow the allowlist.
+- **M4 (code)** - `suite.py` (YAML + validation), suite checks, `classify.py` (failure categories),
+  `evaluate.py` (variants x tasks x repeats, fresh sandbox per run), `report.py` (Wilson intervals),
+  `agentgrade run` CLI, `suites/shop.yaml` (4 tasks x 3 variants) (ADR 0011). 116 tests passing.
 
 ## Results log
 | Date | Task | Model | Tools | Result | Notes |
@@ -53,21 +57,24 @@ completed (FAIL - see results). Optional ablation experiment (`--tools`) pending
 | 2026-10-21 | `call_tool("read_note", name="todo")` raised "multiple values for argument 'name'" | Helper's first parameter was also called `name` | Positional-only `tool_name, /` | `test_runner.py::test_regression_fake_call_tool_accepts_an_argument_called_name` |
 | 2026-10-21 | `pyproject.toml` allowed `mcp>=1.0` though the code needs v2 | Bound written before checking the API | `mcp>=2.3,<3` | (review) |
 | 2026-10-21 | Trace showed `input_tokens: [REDACTED]` | Secret detection used substring `token` | Whole-word key matching | `test_trace.py::test_secret_key_detection` |
+| 2026-10-22 | `trace.event("check", **outcome)` raised TypeError; once fixed, the data's `type` would silently replace the event type | Keyword argument named `type` + data allowed to overwrite envelope keys (same class of bug as the M2 `name` clash) | Positional-only `event_type, /`; reserved keys `seq/ts/type` rejected | `test_trace.py::test_regression_event_data_cannot_overwrite_the_envelope` |
+| 2026-10-22 | "Ollama is down" would be recorded as an ordinary failed run and the suite would keep going; error text read "unhandled errors in a TaskGroup" | Errors inside the MCP client context arrive wrapped in an `ExceptionGroup` (anyio), so `except FatalError` never matched | `root_cause()` unwraps before deciding fatal vs per-run | `test_evaluate.py::test_regression_fatal_error_inside_mcp_context_stops_the_suite` |
 
 ## Approved decisions
 See [decisions/README.md](decisions/README.md) (0001-0010).
 
 ## Unresolved questions
-- M4: YAML suite schema - which check types beyond `answer_has_number`?
-- M4: CLI - stay on argparse or move to Typer for `agentgrade run`?
+- Which 2nd and 3rd MCP servers for M5? (Python-based ones avoid the Node dependency.)
+- Repeats for the public result: 3 (fast) vs 5+ (narrower intervals, ~2x time)?
 
-## Milestones
+## Milestones (re-planned 2026-10-22: repeats/classification/report pulled into M4 for the showcase)
 | # | Milestone | Status |
 |---|---|---|
 | M0 | Repo foundation | Done |
 | M1 | Agent loop with in-process Python tools + fake model | Done |
 | M2 | MCP client over stdio (filesystem server, fixture data) | Done |
 | M3 | Agent loop over MCP tools + trace recording | Done |
-| M4 | YAML suite format + deterministic validators | Not started |
-| M5 | Repeats, failure classification, report | Not started |
-| M6 | First public results on 2-3 real servers + write-up | Not started |
+| M4 | Suites, variants, repeats, failure classification, reports | Code done - real run pending |
+| M5 | Suites for 2-3 more MCP servers; refine taxonomy; actionable recommendations in reports | Not started |
+| M6 | Public case study: before/after results + write-up; README results section | Not started |
+| Later | CI mode (fail a PR on reliability regression), HTML report, paid model adapters, container isolation | - |

@@ -1,0 +1,84 @@
+# AgentGrade suite: can a local model use the official MCP filesystem server
+# to answer questions about a small shop dataset (fixtures/shop)?
+#
+#   uv run agentgrade run suites/shop.yaml
+#
+# Ground truth (fixtures/shop):
+#   orders/A17.json  Asha, IN, 2.0 kg, shipped
+#   orders/B42.json  Ben,  US, 0.5 kg, processing
+#   shipping_rates.json  IN 6.25 USD/kg, US 9.0 USD/kg
+
+name: shop-filesystem
+description: Read-only questions over a small shop dataset via @modelcontextprotocol/server-filesystem.
+
+model:
+  provider: ollama
+  name: qwen3:4b-instruct
+  # Non-zero on purpose: real deployments sample, and reliability is about variation across runs.
+  temperature: 0.7
+
+server:
+  command: npx
+  args: ["-y", "@modelcontextprotocol/server-filesystem@2.0.0", "{root}"]
+  fixture: ../fixtures/shop   # copied fresh into {root} for every run
+
+tools:   # read-only allowlist (ADR 0005 / 0009)
+  - list_allowed_directories
+  - list_directory
+  - directory_tree
+  - read_text_file
+  - search_files
+  - get_file_info
+
+max_steps: 10
+repeats: 3
+
+variants:
+  # Each variant changes exactly ONE thing vs baseline, so a difference can be attributed to it.
+  - name: baseline
+    description: Server exactly as shipped.
+
+  - name: clear-search-description
+    description: >
+      Only search_files' description changes - it states plainly that patterns are relative and
+      non-recursive unless they start with **/. Deliberately generic: no hint about this dataset.
+    description_overrides:
+      search_files: >-
+        Find files and directories by glob pattern under `path`. IMPORTANT: patterns are matched
+        against paths RELATIVE to `path`, and a pattern WITHOUT '**/' only matches entries directly
+        inside `path`, not in subdirectories. To search all subdirectories, start the pattern with
+        '**/', e.g. '**/*.json' or '**/*invoice*'. Matching is on names, not file contents.
+        If you don't know the folder layout yet, call directory_tree or list_directory first.
+        Returns full paths of all matches. Only searches within allowed directories.
+
+  - name: no-search
+    description: search_files removed; the agent must explore with listing tools.
+    tools:
+      - list_allowed_directories
+      - list_directory
+      - directory_tree
+      - read_text_file
+      - get_file_info
+
+tasks:
+  - id: shipping_cost_a17
+    prompt: >-
+      What is the shipping cost in USD for order A17? The order data and the shipping rates
+      are in the files you can access.
+    checks:
+      - {type: answer_number, expected: 12.5}
+
+  - id: order_status_b42
+    prompt: What is the current status of order B42?
+    checks:
+      - {type: answer_contains, expected: processing}
+
+  - id: order_count
+    prompt: How many orders are there in total?
+    checks:
+      - {type: answer_regex, pattern: '(?i)\b(2|two)\b'}
+
+  - id: heaviest_order_customer
+    prompt: Which customer placed the heaviest order?
+    checks:
+      - {type: answer_contains, expected: Asha}

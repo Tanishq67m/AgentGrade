@@ -155,3 +155,13 @@ def test_secret_key_detection(key, secret):
     from agentgrade.trace import is_secret_key
 
     assert is_secret_key(key) is secret
+
+
+def test_regression_event_data_cannot_overwrite_the_envelope(tmp_path: Path):
+    # Bug found in M4: trace.event("check", **outcome) where outcome had its own "type" field
+    # raised a TypeError - and once that was fixed it would silently replace the event type.
+    with TraceWriter.create(tmp_path, run_id="r1") as trace:
+        trace.event("check", check="answer_number", passed=True)  # fine
+        with pytest.raises(ValueError, match="reserved keys"):
+            trace.event("check", type="answer_number")
+    assert [e["type"] for e in read_trace(trace.path)] == ["check"]

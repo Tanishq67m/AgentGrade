@@ -16,6 +16,21 @@ AgentGrade answers that with evidence: **run an agent on a defined task against 
 MCP server, record everything it does, check the outcome in code, repeat to measure
 variability, and report why it succeeded or failed.**
 
+**Who it's for:** teams building AI agents on tools/APIs, companies that need evidence an agent is
+reliable before putting it into real workflows, and MCP server developers who want to know where
+models struggle with their tools. The problem is the gap between an agent that works in a demo and
+one that works consistently:
+
+| Problem | What AgentGrade does about it |
+|---|---|
+| "It worked yesterday, fails today." | Records exact model digest, server version, code commit and environment. |
+| "We don't know why it failed." | Full execution traces plus a failure category for every run. |
+| "It passed once. Is it reliable?" | Repeats every task and reports pass rates with confidence intervals. |
+| "The model says it's correct." | Checks results in code; the model never grades itself. |
+| "Did our fix actually help?" | Variants: the same tasks run before/after one change (e.g. a rewritten tool description), compared side by side. |
+
+These are the intended benefits. So far they are demonstrated on one server and a local model, not yet proven with users.
+
 Core principles:
 - **Deterministic validation.** A task passes only when code says so. The model never grades itself.
 - **Reproducibility.** Every result records the exact model weights, server version, code commit and environment.
@@ -41,7 +56,10 @@ task + expected answer
         │                                                              (pinned, sandboxed to a temp copy)
         ├──► TraceWriter: runs/<id>/trace.jsonl  (every event, flushed as it happens, secrets redacted)
         ▼
-   RunResult ──► checks (answer_has_number) ──► PASS / FAIL
+   RunResult ──► checks ──► failure classification ──► results.json + report.md
+
+suite.yaml = model + server + allowlist + tasks (with checks) + variants
+agentgrade run = every variant x task x repeat, each in a fresh sandbox + fresh server process
 ```
 
 - **Python 3.12, uv, pytest, ruff** - lockfile-based, reproducible setup.
@@ -73,6 +91,21 @@ readable partial trace. Run metadata records the Python/Node/package versions, g
 the Ollama model digest, the MCP server's name/version/protocol, the allowlist and the sandbox path.
 Secret-looking keys are redacted. Crashes are recorded and then re-raised.
 The demo answer check now extracts numbers instead of matching substrings.
+The first real run failed; the trace explained why (see section 6).
+
+**M4 - Suites, variants, repeats, reports.** Pulled forward so the project ends in a showcase:
+**fail → trace → fix → repeatable before/after numbers.**
+- **YAML suites** (strict validation: a typo fails loudly) define the model, server, allowlist, tasks and their code checks
+  (`answer_number`, `answer_contains`, `answer_regex`, `tool_called`).
+- **Variants** each change ONE thing vs baseline: a tool subset, or a **rewritten tool description**. Description
+  overrides let a server author test a better description *without redeploying the server*. Overrides must be
+  generic; a hint about the task would measure the leak, not the description.
+- Every run gets a **fresh fixture copy and a fresh server process**, so no state leaks between runs.
+- **Failure classification** from the trace: `loop` (the same tool returned an identical result 3+ times in a row,
+  the pattern of real run 1), `step_limit`, `no_answer`, `wrong_answer`, `harness_error` (infrastructure, not the agent).
+- **Reports** show pass rates as k/n with a **95% Wilson interval** and a small-sample warning: 3/3 means
+  "probably good" (interval 44-100%), not "100% reliable".
+- `agentgrade run suites/shop.yaml` gives `report.md`, `results.json` and one trace per run.
 
 ## 4. Key decisions and trade-offs
 
@@ -86,6 +119,10 @@ The demo answer check now extracts numbers instead of matching substrings.
 | Pin model digest and server version | `latest` tags | A tag silently changed which model ran (see mistakes). |
 | JSONL traces | One JSON per run | Crash-safe, streamable, greppable. |
 | Fake model + fake HTTP in tests | Test with real models | Real models are non-deterministic and slow; tests must be exact. Real runs are manual demos. |
+| One-change variants | Free-form A/B configs | A difference in pass rate is attributable to one change. |
+| Fresh sandbox + server per run | Reuse one server | Isolation and reproducibility beat ~1-2 s of startup per run. |
+| Wilson interval | Raw percentage | Honest at small n and at 0% or 100%. |
+| Temperature 0.7 in suites | Temperature 0 | Reliability is about variation; at 0, repeats are near-identical. |
 
 ## 5. Mistakes and what they taught
 
@@ -105,29 +142,38 @@ The demo answer check now extracts numbers instead of matching substrings.
 5. **Name clash in a test helper.** `call_tool(name, **arguments)` broke for a tool whose own argument was
    called `name`. Fixed with a positional-only parameter.
 6. **Environment drift.** `uv` picked up Anaconda's Python, and the filesystem server needs Node ≥ 24 while the
-   machine had 22. Both worked "by accident". This is why traces now record the environment.
+   machine had 22. Both worked "by accident". Fixing Node took two attempts: the first install went into the
+   project folder as an npm package instead of the system. This is why traces now record the environment.
+7. **The same bug class twice.** `trace.event(type, **data)` broke when the data had its own `type` field, just like
+   mistake 5. Worse, once that was fixed, the data could have silently overwritten the event's type. Fix: positional-only
+   parameter plus reserved keys rejected. **Lesson:** any function that takes `**kwargs` must protect its own names.
+8. **Wrapped exceptions hiding fatal errors.** Errors inside the MCP client arrive wrapped in an `ExceptionGroup`
+   (anyio task groups), so "Ollama is down" would have been recorded as an ordinary failed run while the suite ground
+   through every remaining run. Caught by a test before any real suite run. Fix: unwrap to the root cause before deciding.
 
 Each fixed bug has a regression test and an entry in the STATUS bug log.
 
 ## 6. Current state and known limitations
 
-- 84 automated tests (unit, fake-HTTP and real-stdio integration).
+- 116 automated tests (unit, fake-HTTP, real-stdio integration, end-to-end suite runs).
 - **First real result (failed, and informative):** `qwen3:4b-instruct` on the official filesystem server hit the
   10-step limit. It searched with non-recursive glob patterns (`order*.json`) for a file in a subfolder,
   repeated near-identical searches 7 times, and never tried the listing tools. The server was verified correct.
   The finding has two sides: a model weakness (wrong mental model of the tool, a loop without progress) and a
   tool-UX gap (`No matches found` gives no hint about `**/`). Failures with this kind of explanation are the product.
+- **The showcase run is next:** `suites/shop.yaml` runs 4 tasks x 3 variants (baseline, clearer `search_files`
+  description, search tool removed) x 3 repeats on the real server. The pipeline is verified with scripted agents;
+  real-model numbers are pending.
 - Limitations: stdio only; one model provider; only `max_steps` as a limit (no token/time/cost limits yet);
   key-based redaction only; trusted servers only. Server tool descriptions go straight into the prompt, which is a
   prompt-injection risk accepted only because the servers are trusted. Startup failures are reported only after a 60 s timeout.
 
 ## 7. Next
 
-- **M4 - Suites.** Tasks defined in YAML (task, target server, allowlist, expected outcome, check type) and a
-  set of deterministic validators. Command: `agentgrade run suite.yaml`.
-- **M5 - Reliability.** N repeats per task, pass rate with honest small-sample notes, a **failure taxonomy**
-  derived from traces (wrong tool, invalid arguments, tool error, step limit, wrong answer, no answer), and a
-  markdown report with latency/tokens.
-- **M6 - First public results** on 2-3 real MCP servers, plus a write-up.
-- **Later, once data shapes are stable:** FastAPI + PostgreSQL for run history and before/after comparisons,
-  paid model adapters, HTTP transports, container isolation before running any untrusted server, CI integration.
+- **M4 showcase run** on the Mac, then publish the before/after report honestly, whatever it shows.
+- **M5 - More servers + recommendations.** Suites for 2-3 more MCP servers (Python-based ones avoid the Node dependency),
+  refine the failure taxonomy, and have reports suggest concrete fixes (e.g. "search returned identical
+  empty results 9x: say in the description that patterns are non-recursive").
+- **M6 - Public case study:** before/after results across servers, a write-up, and a results section in the README.
+- **Later, driven by demand:** CI mode (fail a pull request when reliability drops), HTML report, paid model
+  adapters, FastAPI + PostgreSQL for run history, container isolation before running any untrusted server.
