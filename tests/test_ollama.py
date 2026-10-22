@@ -202,3 +202,23 @@ def test_thinking_field_from_ollama_is_kept_separately():
 )
 def test_split_thinking_cases(thinking, content, expected):
     assert split_thinking(thinking, content) == expected
+
+
+async def test_describe_reports_the_model_digest():
+    def handler(request):
+        assert request.url.path == "/api/tags"
+        return httpx.Response(
+            200,
+            json={"models": [{"name": "qwen3:4b", "digest": "359d7dd4bcda0000", "details": {}}]},
+        )
+
+    info = await make_model(handler).describe()
+    assert info["digest"] == "359d7dd4bcda0000"
+
+
+async def test_describe_never_raises():
+    def handler(request):
+        raise httpx.ConnectError("refused", request=request)
+
+    info = await make_model(handler).describe()
+    assert info["digest"] is None and "ConnectError" in info["describe_error"]

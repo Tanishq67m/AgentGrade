@@ -23,6 +23,9 @@ htmlcov/
 # AgentGrade run output (traces can be large; commit selected results deliberately)
 runs/
 
+# Node (never commit; servers run via npx)
+node_modules/
+
 # OS / editor
 .DS_Store
 .idea/

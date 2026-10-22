@@ -108,6 +108,21 @@ class OllamaModel:
             ),
         )
 
+    async def describe(self) -> dict[str, Any]:
+        """Best-effort model identity. The digest pins the exact weights - a tag like
+        `qwen3:4b` can silently point to a different model (ADR 0008)."""
+        info: dict[str, Any] = {"provider": "ollama", "model": self.model, "digest": None}
+        try:
+            response = await self._client.get("/api/tags")
+            response.raise_for_status()
+            for entry in response.json().get("models", []):
+                if self.model in (entry.get("name"), entry.get("model")):
+                    info["digest"] = entry.get("digest")
+                    info["details"] = entry.get("details")
+        except (httpx.HTTPError, ValueError) as exc:
+            info["describe_error"] = f"{type(exc).__name__}: {exc}"
+        return info
+
     async def aclose(self) -> None:
         await self._client.aclose()
 

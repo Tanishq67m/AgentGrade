@@ -79,6 +79,18 @@ class McpConnection:
         self.tools = tools
         self._client = client
 
+    def describe(self) -> dict[str, Any]:
+        """What we connected to - recorded in traces so results are reproducible."""
+        info = self._client.server_info
+        return {
+            "config_name": self.config.name,
+            "command": [self.config.command, *self.config.args],
+            "server_name": info.name if info else None,
+            "server_version": info.version if info else None,
+            "protocol_version": self._client.protocol_version,
+            "tools_offered": self.tool_names(),
+        }
+
     def tool_names(self) -> list[str]:
         return [t.name for t in self.tools]
 

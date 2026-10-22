@@ -12,8 +12,10 @@ import argparse
 import asyncio
 import sys
 
+from agentgrade.checks import answer_has_number
+from agentgrade.console import print_run
 from agentgrade.models.ollama import OllamaError, OllamaModel
-from agentgrade.runner import RunLimits, RunResult, run_agent
+from agentgrade.runner import RunLimits, run_agent
 from agentgrade.tools import Tool, ToolRegistry
 
 ORDERS = {
@@ -23,7 +25,7 @@ ORDERS = {
 RATE_PER_KG_USD = {"IN": 6.25, "US": 9.00}
 
 TASK = "What is the shipping cost in USD for order A17?"
-EXPECTED = "12.5"  # ground truth: 2.0 kg * 6.25 USD/kg
+EXPECTED = 12.5  # ground truth: 2.0 kg * 6.25 USD/kg
 
 
 def lookup_order(order_id: str) -> dict:
@@ -74,26 +76,6 @@ def build_registry() -> ToolRegistry:
     )
 
 
-def print_run(result: RunResult) -> None:
-    print(f"\nModel: {result.model}\nTask:  {result.task}\n")
-    for step in result.steps:
-        print(f"--- step {step.index}  ({step.model_latency_ms:.0f} ms)")
-        if step.response.thinking:
-            print(f"  (model reasoning hidden: {len(step.response.thinking)} chars)")
-        if step.response.content:
-            print(f"  model says: {step.response.content.strip()}")
-        for call, outcome in zip(step.response.tool_calls, step.tool_results, strict=False):
-            status = "ok" if outcome.ok else outcome.error_type
-            print(f"  tool call:  {call.name}({call.arguments})")
-            print(f"  result:     [{status}] {outcome.content}")
-    passed = result.final_answer is not None and EXPECTED in result.final_answer
-    print(f"\nStop reason:  {result.stop_reason}")
-    print(f"Final answer: {result.final_answer!r}")
-    print(f"Expected:     contains {EXPECTED!r} -> {'PASS' if passed else 'FAIL'}")
-    print(f"Tokens:       {result.usage.input_tokens} in / {result.usage.output_tokens} out")
-    print(f"Duration:     {result.duration_ms / 1000:.1f} s")
-
-
 async def main(model_name: str, max_steps: int) -> int:
     model = OllamaModel(model_name, temperature=0)
     try:
@@ -106,6 +88,8 @@ async def main(model_name: str, max_steps: int) -> int:
     finally:
         await model.aclose()
     print_run(result)
+    passed = answer_has_number(result.final_answer, EXPECTED)
+    print(f"Check:        answer contains the number {EXPECTED} -> {'PASS' if passed else 'FAIL'}")
     return 0
 
 

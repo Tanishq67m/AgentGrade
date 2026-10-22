@@ -47,6 +47,7 @@ class ToolResult(BaseModel):
     ok: bool
     content: str  # what the model will see
     error_type: ToolErrorType | None = None
+    latency_ms: float | None = None  # filled in by the runner
 
 
 class ToolRegistry:

@@ -1,5 +1,6 @@
 """The demo's tools + ground truth, run through the real runner with a scripted model."""
 
+from agentgrade.checks import answer_has_number
 from agentgrade.demo import EXPECTED, TASK, build_registry
 from agentgrade.models.fake import ScriptedModel, call_tool, final_answer
 from agentgrade.runner import run_agent
@@ -18,4 +19,4 @@ async def test_demo_tools_produce_the_expected_ground_truth():
     cost_result = result.steps[1].tool_results[0]
     assert cost_result.ok
     assert '"cost_usd": 12.5' in cost_result.content
-    assert EXPECTED in result.final_answer
+    assert answer_has_number(result.final_answer, EXPECTED)

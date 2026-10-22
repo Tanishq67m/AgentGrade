@@ -19,31 +19,17 @@ import sys
 import tempfile
 from pathlib import Path
 
-from agentgrade.mcp_client import McpError, McpServerConfig, ToolPolicyError, connect
+from agentgrade.mcp_client import McpError, ToolPolicyError, connect
+from agentgrade.servers import (
+    FILESYSTEM_READ_ONLY_TOOLS as READ_ONLY_ALLOWLIST,
+)
+from agentgrade.servers import (
+    FILESYSTEM_SERVER_PACKAGE,
+    SHOP_FIXTURE,
+    filesystem_server,
+)
 from agentgrade.tools import ToolRegistry
 from agentgrade.types import ToolCall
-
-# Pinned: a moving tag can silently change what we test (see ADR 0008).
-FILESYSTEM_SERVER_PACKAGE = "@modelcontextprotocol/server-filesystem@2.0.0"
-FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "shop"
-
-READ_ONLY_ALLOWLIST = [
-    "list_allowed_directories",
-    "list_directory",
-    "directory_tree",
-    "read_text_file",
-    "search_files",
-    "get_file_info",
-]
-
-
-def filesystem_server(root: Path) -> McpServerConfig:
-    return McpServerConfig(
-        name="filesystem",
-        command="npx",
-        args=["-y", FILESYSTEM_SERVER_PACKAGE, str(root)],
-        timeout_s=60,
-    )
 
 
 async def main() -> int:
@@ -56,7 +42,7 @@ async def main() -> int:
     with tempfile.TemporaryDirectory(prefix="agentgrade-") as tmp:
         # resolve(): on macOS /var is a symlink to /private/var; give the server the real path
         root = Path(tmp).resolve() / "shop"
-        shutil.copytree(FIXTURE_DIR, root)
+        shutil.copytree(SHOP_FIXTURE, root)
         print(f"Sandbox copy: {root}")
         print(f"Starting {FILESYSTEM_SERVER_PACKAGE} (first run downloads it)...\n")
 
