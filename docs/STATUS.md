@@ -4,8 +4,8 @@ _Last updated: 2026-10-21_
 
 ## Current objective
 **Milestone 4 - suites, variants, repeated runs, failure classification, reports.** Code + tests
-done; whole pipeline verified on the real filesystem server with staged (scripted) agents. First real
-suite run on the Mac (`agentgrade run suites/shop.yaml`) pending - that run is the showcase.
+done. Suite runs 1 and 2 completed on the Mac; the before/after result replicated and the ablation
+identified the active change (results below). Next: M5 (more servers + a stronger model) and the public case study.
 
 ## Completed
 - **M0** - repo foundation (ADRs 0001-0006).
@@ -18,17 +18,43 @@ suite run on the Mac (`agentgrade run suites/shop.yaml`) pending - that run is t
   check, `mcp_agent_demo` (ADR 0010), `--tools` flag to narrow the allowlist.
 - **M4 (code)** - `suite.py` (YAML + validation), suite checks, `classify.py` (failure categories),
   `evaluate.py` (variants x tasks x repeats, fresh sandbox per run), `report.py` (Wilson intervals),
-  `agentgrade run` CLI, `suites/shop.yaml` (4 tasks x 3 variants) (ADR 0011). 116 tests passing.
+  `agentgrade run` CLI, `suites/shop.yaml` (ADR 0011). After run 1: `gave_up` category, `agentgrade report`
+  re-classification, ablation + agent-side variants (ADR 0012). 120 tests passing.
 
 ## Results log
 | Date | Task | Model | Tools | Result | Notes |
 |---|---|---|---|---|---|
 | 2026-10-22 | `shop.shipping_cost_a17` | `qwen3:4b-instruct` (`0edcdef34593`, Q4_K_M) | 6 read-only filesystem tools | **FAIL** - `max_steps` (10), no answer, 40.2 s, 14167 in / 853 out tokens | Trace `20261022T085044Z-227814`. Used only `search_files`, with 9 non-recursive glob patterns (`order*.json`, `A17*.csv`, ...) though the file is at `orders/A17.json` and the description says to use `**/` for subfolders. Steps 4-10 repeat "try a broader pattern" without broadening. Never tried `list_directory`/`directory_tree`. Server verified correct: `**/A17*` and `shipping*.json` match. |
 
+| 2026-10-22 | **Suite run 1** `shop-filesystem`, 4 tasks x 3 variants x 3 | `qwen3:4b-instruct` (`0edcdef34593`), temp 0.7 | per variant | baseline **1/12** (CI 1-35%) · clear-search-description **9/12** (CI 47-91%) · no-search **1/12** | Run `20261022T093534Z-654798`. 23/25 failures = `gave_up` (refused on step 1, zero tool calls: "I don't have access to any system or database..."). `order_status_b42` 0/3 in every variant. The winning description mixes two ideas -> ablation in run 2. |
+
+| 2026-10-22 | **Suite run 2** `shop-filesystem`, 4 tasks x 6 variants x 3 | `qwen3:4b-instruct` (`0edcdef34593`), temp 0.7 | per variant | baseline **1/12** · glob-rules-only **9/12** (CI 47-91%) · explore-first-only **1/12** · clear-search-description **8/12** · no-search **1/12** · agent-context **3/12** (CI 9-53%) | Run `20261022T095739Z-f2965e`. Baseline (1/12) and combined description (9 -> 8/12) **replicated** across independent runs. Ablation: the precise glob rules carry the whole effect; the "explore first" sentence adds nothing. The agent-side system-prompt sentence only helped the one task whose prompt mentions files. `order_status_b42`: 0/18 (0/27 across both runs). |
+
 **Findings from run 1** (inputs for M5's failure taxonomy and recommendations):
 - Model-side: wrong tool mental model (non-recursive globs), **repetition loop without progress**, no strategy switch.
 - Tool-side (server UX): a bare `No matches found` gives no recovery hint; a message about `**/` would likely let the agent recover.
 - Harness: input tokens grow every step because the full history is resent (14k in for 10 steps).
+
+**Findings from suite run 1:**
+- The dominant failure is not bad tool use but **no tool use**: the model assumes it has no access and declines.
+- Changing **one tool's description** turned 1/12 into 9/12. The model then used `**/` patterns and `directory_tree`.
+  Which of the two ideas in that description mattered is unknown -> `glob-rules-only` / `explore-first-only`.
+- Removing `search_files` didn't help (1/12): the refusal happens before any tool choice.
+- `order_status_b42` failed everywhere. Hypothesis (unverified): "status" suggests an order-management system, not files.
+- The official `search_files` description begins "Recursively search..." though matching is non-recursive without `**/`.
+
+**Findings from suite run 2 (ablation):**
+- **The active ingredient is the precise matching rules** (glob-rules-only 9/12 vs explore-first-only 1/12, same as baseline).
+  In passing runs the model's first search used `**/` (`**/*order*`) instead of `order*.txt`.
+- Rewriting that one description also cut `gave_up` from 9 to 3. *Why* a clearer search description makes the model
+  attempt the task at all is unverified. Hypothesis: concrete, business-flavoured examples (`**/*invoice*`) signal that
+  the files hold user data. One run even searched `**/*.invoice`, copying the example literally.
+- **Agent-side fix (system prompt) < server-side fix (tool description)** for this model: 3/12 vs 9/12; it only fixed
+  the task whose prompt already mentions files.
+- **New secondary failure:** stopping after the first file ("the order data doesn't include the shipping cost") instead of
+  looking for the rates file: 5 `wrong_answer` runs on `shipping_cost_a17`. Candidate category: `incomplete_exploration`.
+- `order_status_b42` is never attempted (0/27). Unverified hypothesis: "current status" reads as a live-system query.
+- Caveat: one 4B local model, one small dataset, 3 repeats per cell. These are findings about this setup.
 
 ## Current implementation state
 | Module | Responsibility |

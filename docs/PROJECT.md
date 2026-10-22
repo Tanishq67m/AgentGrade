@@ -151,19 +151,39 @@ The first real run failed; the trace explained why (see section 6).
    (anyio task groups), so "Ollama is down" would have been recorded as an ordinary failed run while the suite ground
    through every remaining run. Caught by a test before any real suite run. Fix: unwrap to the root cause before deciding.
 
+9. **A confounded experiment.** The first "improved description" changed two things at once, so a 1/12 to 9/12 gain
+   couldn't be credited to either. **Lesson:** one change per variant is a rule we wrote, then broke. Split into
+   ablations.
+10. **A taxonomy that hid the main failure.** `wrong_answer` covered both "explored and got it wrong" and "refused
+   without trying". The real data showed the second was 92% of failures. **Lesson:** categories are an interpretation;
+   keep raw observations and re-derive categories as understanding improves.
+
 Each fixed bug has a regression test and an entry in the STATUS bug log.
 
 ## 6. Current state and known limitations
 
-- 116 automated tests (unit, fake-HTTP, real-stdio integration, end-to-end suite runs).
+- 120 automated tests (unit, fake-HTTP, real-stdio integration, end-to-end suite runs).
 - **First real result (failed, and informative):** `qwen3:4b-instruct` on the official filesystem server hit the
   10-step limit. It searched with non-recursive glob patterns (`order*.json`) for a file in a subfolder,
   repeated near-identical searches 7 times, and never tried the listing tools. The server was verified correct.
   The finding has two sides: a model weakness (wrong mental model of the tool, a loop without progress) and a
   tool-UX gap (`No matches found` gives no hint about `**/`). Failures with this kind of explanation are the product.
-- **The showcase run is next:** `suites/shop.yaml` runs 4 tasks x 3 variants (baseline, clearer `search_files`
-  description, search tool removed) x 3 repeats on the real server. The pipeline is verified with scripted agents;
-  real-model numbers are pending.
+- **First suite run (36 runs, qwen3:4b-instruct, temperature 0.7):** baseline **1/12**, rewritten `search_files`
+  description **9/12** (95% intervals 1-35% vs 47-91%, no overlap), search tool removed **1/12**.
+  The traces changed our understanding: **23 of 25 failures were the model refusing on step 1 without calling any
+  tool** ("I don't have access to any database"). The classifier had labelled them `wrong_answer`; a new `gave_up`
+  category now names them, and stored results can be re-classified (`agentgrade report`).
+- **Our own experiment had a flaw:** the winning description contained two ideas (precise glob rules + "look at the
+  folder layout first"), so the gain couldn't be attributed. Run 2 added ablation variants (each idea alone) and an
+  agent-side fix (one system-prompt sentence).
+- **Second suite run (72 runs), ablation:** baseline **1/12** again, combined description **8/12** (it was 9/12): the
+  effect **replicated**. **Precise glob rules alone: 9/12. "Explore first" sentence alone: 1/12**, no effect. So the
+  whole gain comes from stating the matching rules precisely. The agent-side system-prompt fix reached only **3/12**,
+  and only on the task whose prompt mentions files. For this model, fixing the tool's description beat fixing the
+  agent's prompt. `order_status_b42` was never attempted in 27 runs. A new secondary failure showed up: stopping after
+  the first file instead of looking for the rates file.
+- These results cover one 4B local model, one small dataset and 3 repeats per cell. They are findings about this
+  setup, not general claims, and re-running on other servers and a stronger model is the next step.
 - Limitations: stdio only; one model provider; only `max_steps` as a limit (no token/time/cost limits yet);
   key-based redaction only; trusted servers only. Server tool descriptions go straight into the prompt, which is a
   prompt-injection risk accepted only because the servers are trusted. Startup failures are reported only after a 60 s timeout.

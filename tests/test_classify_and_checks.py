@@ -115,3 +115,18 @@ def test_error_signals_are_counted():
 
 def test_crash_is_harness_error_not_agent_failure():
     assert classify(None, [], crashed=True)[0] == "harness_error"
+
+
+def test_regression_gave_up_from_first_suite_run():
+    # Suite run 1 (2026-10-22): 23 of 25 failures were refusals on step 1 with no tool call,
+    # e.g. "I don't have access to any system or database that tracks orders...". They were
+    # labelled wrong_answer, which hid the real failure.
+    refusal = "I don't have access to any system or database that tracks orders."
+    category, signals = classify(run([step(1, answer=refusal)], answer=refusal), outcome(False))
+    assert category == "gave_up"
+    assert signals.tool_calls == 0
+
+
+def test_wrong_answer_still_means_tools_were_used():
+    explored = run([step(1, "read_text_file"), step(2, answer="not stated")], answer="not stated")
+    assert classify(explored, outcome(False))[0] == "wrong_answer"

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from agentgrade.evaluate import FATAL_ERRORS, RunSummary, run_suite
 from agentgrade.models.ollama import OllamaModel
-from agentgrade.report import write_report
+from agentgrade.report import load_results, reclassify, write_report
 from agentgrade.suite import Suite, Task, Variant, load_suite
 
 
@@ -63,6 +63,15 @@ async def _run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _report(args: argparse.Namespace) -> int:
+    result = reclassify(load_results(args.run_dir))
+    path = write_report(result, args.run_dir)
+    passed = sum(r.passed for r in result.runs)
+    print(f"{passed}/{len(result.runs)} runs passed (categories re-derived with current rules).")
+    print(f"Report: {path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agentgrade", description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -72,8 +81,12 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--variants", help="comma-separated variant names (default: all)")
     run.add_argument("--tasks", help="comma-separated task ids (default: all)")
     run.add_argument("--runs-dir", type=Path, default=Path("runs"))
+    rep = sub.add_parser("report", help="re-render report.md for an existing run folder")
+    rep.add_argument("run_dir", type=Path)
     args = parser.parse_args(argv)
     try:
+        if args.command == "report":
+            return _report(args)
         return asyncio.run(_run(args))
     except (ValueError, FileNotFoundError) as exc:  # bad suite file / unknown variant
         print(f"Error: {exc}", file=sys.stderr)

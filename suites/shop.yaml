@@ -35,13 +35,38 @@ repeats: 3
 
 variants:
   # Each variant changes exactly ONE thing vs baseline, so a difference can be attributed to it.
+  # Run 1 of this suite (2026-10-22) showed clear-search-description at 9/12 vs baseline 1/12, but that
+  # description contains TWO ideas. glob-rules-only and explore-first-only separate them.
   - name: baseline
     description: Server exactly as shipped.
 
-  - name: clear-search-description
+  - name: glob-rules-only
     description: >
-      Only search_files' description changes - it states plainly that patterns are relative and
-      non-recursive unless they start with **/. Deliberately generic: no hint about this dataset.
+      search_files' description rewritten to state the matching rules precisely (relative,
+      non-recursive unless '**/'). No advice about exploring first.
+    description_overrides:
+      search_files: >-
+        Find files and directories by glob pattern under `path`. IMPORTANT: patterns are matched
+        against paths RELATIVE to `path`, and a pattern WITHOUT '**/' only matches entries directly
+        inside `path`, not in subdirectories. To search all subdirectories, start the pattern with
+        '**/', e.g. '**/*.json' or '**/*invoice*'. Matching is on names, not file contents.
+        Returns full paths of all matches. Only searches within allowed directories.
+
+  - name: explore-first-only
+    description: >
+      Original search_files description, word for word, plus ONE sentence advising to look at the
+      folder layout first. Matching rules unchanged.
+    description_overrides:
+      search_files: >-
+        Recursively search for files and directories matching a pattern. The patterns should be
+        glob-style patterns that match paths relative to the working directory. Use pattern like
+        '*.ext' to match files in current directory, and '**/*.ext' to match files in all
+        subdirectories. Returns full paths to all matching items. Great for finding files when you
+        don't know their exact location. Only searches within allowed directories.
+        If you don't know the folder layout yet, call directory_tree or list_directory first.
+
+  - name: clear-search-description
+    description: Both ideas together (glob rules + explore first). The 9/12 variant from run 1.
     description_overrides:
       search_files: >-
         Find files and directories by glob pattern under `path`. IMPORTANT: patterns are matched
@@ -59,6 +84,15 @@ variants:
       - directory_tree
       - read_text_file
       - get_file_info
+
+  - name: agent-context
+    description: >
+      Agent-side fix instead of a server-side one: server untouched, one generic sentence added to
+      the agent's system prompt. Targets the dominant failure in run 1 (gave_up: refusing without
+      calling any tool).
+    system_prompt_suffix: >-
+      Your tools give you access to the user's data. Before saying that information is
+      unavailable, explore with the tools to check.
 
 tasks:
   - id: shipping_cost_a17

@@ -22,7 +22,7 @@ from agentgrade.environment import collect_environment
 from agentgrade.mcp_client import McpServerConfig, McpServerStartError, connect
 from agentgrade.models.base import ModelAdapter
 from agentgrade.models.ollama import OllamaModelNotFoundError, OllamaUnavailableError
-from agentgrade.runner import RunLimits, run_agent
+from agentgrade.runner import DEFAULT_SYSTEM_PROMPT, RunLimits, run_agent
 from agentgrade.suite import ROOT_PLACEHOLDER, Suite, Task, Variant
 from agentgrade.tools import ToolRegistry
 from agentgrade.trace import TraceWriter, new_run_id
@@ -31,6 +31,12 @@ from agentgrade.trace import TraceWriter, new_run_id
 FATAL_ERRORS = (OllamaUnavailableError, OllamaModelNotFoundError, McpServerStartError)
 
 ModelFactory = Callable[[Suite, Variant, Task, int], ModelAdapter]
+
+
+def system_prompt_for(variant: Variant) -> str:
+    if variant.system_prompt_suffix:
+        return f"{DEFAULT_SYSTEM_PROMPT}\n\n{variant.system_prompt_suffix.strip()}"
+    return DEFAULT_SYSTEM_PROMPT
 
 
 def root_cause(exc: BaseException) -> BaseException:
@@ -165,6 +171,7 @@ async def _run_one(
                         model,
                         registry,
                         task.prompt,
+                        system_prompt=system_prompt_for(variant),
                         limits=RunLimits(max_steps=suite.max_steps_for(task)),
                         trace=trace,
                         metadata={

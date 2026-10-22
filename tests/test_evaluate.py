@@ -131,3 +131,44 @@ async def test_regression_fatal_error_inside_mcp_context_stops_the_suite(tmp_pat
     with pytest.raises(OllamaUnavailableError):
         await run_suite(SUITE, factory, tmp_path)
     assert calls == [1]  # stopped after the first run, not after all 4
+
+
+async def test_system_prompt_suffix_reaches_the_model(tmp_path: Path):
+    suite = SUITE.model_copy(
+        update={
+            "variants": [
+                SUITE.variants[0].model_copy(
+                    update={"name": "agent-context", "system_prompt_suffix": "Explore first."}
+                )
+            ]
+        }
+    )
+    created.clear()
+
+    def solver(suite, variant, task, repeat):
+        model = ScriptedModel([call_tool("read_note", name="todo"), final_answer("AgentGrade")])
+        created.append(model)
+        return model
+
+    await run_suite(suite, solver, tmp_path, repeats=1)
+    system = created[0].received[0][0]
+    assert system.role == "system" and system.content.endswith("Explore first.")
+
+
+async def test_report_command_reclassifies_stored_results(tmp_path: Path):
+    from agentgrade.cli import main
+    from agentgrade.report import load_results
+
+    def refuser(suite, variant, task, repeat):
+        return ScriptedModel([final_answer("I don't have access to that.")])
+
+    _, out_dir = await run_suite(SUITE, refuser, tmp_path, only_variants=["baseline"], repeats=1)
+    # simulate a results.json written by an older classifier
+    stored = load_results(out_dir)
+    stale = stored.model_copy(
+        update={"runs": [r.model_copy(update={"category": "wrong_answer"}) for r in stored.runs]}
+    )
+    (out_dir / "results.json").write_text(stale.model_dump_json())
+
+    assert main(["report", str(out_dir)]) == 0
+    assert "gave_up" in (out_dir / "report.md").read_text()

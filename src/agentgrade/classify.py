@@ -7,8 +7,12 @@ ordered so each run gets the most specific explanation that applies.
   harness_error   AgentGrade/model/server crashed mid-run (not the agent's fault)
   loop            hit max_steps while repeating a tool call that kept returning the same result
   step_limit      hit max_steps without such a repetition
+  gave_up         answered WITHOUT CALLING ANY TOOL, and failed (e.g. "I don't have access")
   no_answer       stopped with an empty final answer
-  wrong_answer    gave an answer, but a check failed
+  wrong_answer    used tools and gave an answer, but a check failed
+
+`gave_up` was added after the first full suite run (2026-10-22): 23 of 25 failures were the
+model declining on step 1 without exploring, which `wrong_answer` hid.
 """
 
 from __future__ import annotations
@@ -20,7 +24,9 @@ from pydantic import BaseModel
 from agentgrade.checks import CheckOutcome
 from agentgrade.runner import RunResult
 
-Category = Literal["pass", "harness_error", "loop", "step_limit", "no_answer", "wrong_answer"]
+Category = Literal[
+    "pass", "harness_error", "loop", "step_limit", "gave_up", "no_answer", "wrong_answer"
+]
 
 LOOP_MIN_REPEATS = 3  # identical result from the same tool this many times in a row
 
@@ -66,10 +72,32 @@ def classify(
     if crashed or result is None:
         return "harness_error", collect_signals(result) if result else Signals()
     signals = collect_signals(result)
-    if checks and all(c.passed for c in checks):
-        return "pass", signals
-    if result.stop_reason == "max_steps":
-        return ("loop" if signals.longest_repeat >= LOOP_MIN_REPEATS else "step_limit"), signals
-    if not (result.final_answer or "").strip():
-        return "no_answer", signals
-    return "wrong_answer", signals
+    category = categorize(
+        stop_reason=result.stop_reason,
+        final_answer=result.final_answer,
+        checks_passed=[c.passed for c in checks],
+        signals=signals,
+    )
+    return category, signals
+
+
+def categorize(
+    *,
+    stop_reason: str | None,
+    final_answer: str | None,
+    checks_passed: list[bool],
+    signals: Signals,
+    crashed: bool = False,
+) -> Category:
+    """The rules, on plain recorded data - so stored results can be re-classified later."""
+    if crashed:
+        return "harness_error"
+    if checks_passed and all(checks_passed):
+        return "pass"
+    if stop_reason == "max_steps":
+        return "loop" if signals.longest_repeat >= LOOP_MIN_REPEATS else "step_limit"
+    if signals.tool_calls == 0 and (final_answer or "").strip():
+        return "gave_up"
+    if not (final_answer or "").strip():
+        return "no_answer"
+    return "wrong_answer"

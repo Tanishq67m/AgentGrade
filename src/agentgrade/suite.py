@@ -4,9 +4,10 @@ A suite answers: "on THIS server, with THIS model, how reliably are THESE tasks 
 and does a change (a variant) make it better or worse?"
 
 Variants are the before/after mechanism. Each one changes exactly one thing relative to
-the baseline - the tool set, or a tool's description - so a difference in pass rate can be
-attributed to that change. Description overrides let a server author test a better tool
-description WITHOUT redeploying the server.
+the baseline - the tool set, a tool's description (server-side fix), or the agent's system
+prompt (agent-side fix) - so a difference in pass rate can be attributed to that change.
+Description overrides let a server author test a better tool description WITHOUT redeploying
+the server.
 """
 
 from __future__ import annotations
@@ -79,7 +80,8 @@ class Variant(_Strict):
     name: str
     description: str = ""
     tools: list[str] | None = None  # None = suite allowlist; otherwise must be a SUBSET of it
-    description_overrides: dict[str, str] = Field(default_factory=dict)
+    description_overrides: dict[str, str] = Field(default_factory=dict)  # server-side fix
+    system_prompt_suffix: str | None = None  # agent-side fix: appended to the default prompt
 
 
 class Suite(_Strict):

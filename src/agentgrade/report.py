@@ -12,6 +12,7 @@ import statistics
 from collections import Counter
 from pathlib import Path
 
+from agentgrade.classify import categorize
 from agentgrade.evaluate import RunSummary, SuiteResult
 
 SMALL_SAMPLE = 10
@@ -130,6 +131,9 @@ def render_report(result: SuiteResult) -> str:
                         f"same tool returned an identical result {r.signals.longest_repeat}x in a row; "
                         + why
                     )
+                elif r.category == "gave_up":
+                    answer = (r.final_answer or "").replace("\n", " ").replace("|", "\\|")
+                    why = f"no tool called; answered: {answer[:70]!r}"
             add(
                 f"| {r.variant} | {r.task_id} | {r.repeat} | {r.category} | {why[:120]} | `{r.trace}` |"
             )
@@ -141,8 +145,9 @@ def render_report(result: SuiteResult) -> str:
     )
     add(
         "- Categories: `loop` = step limit hit while one tool kept returning the same result; "
-        "`step_limit` = step limit without repetition; `wrong_answer` = answered but a check failed; "
-        "`no_answer`; `harness_error` = infrastructure failure, not the agent's fault."
+        "`step_limit` = step limit without repetition; `gave_up` = answered without calling any tool; "
+        "`wrong_answer` = used tools and answered, but a check failed; `no_answer`; "
+        "`harness_error` = infrastructure failure, not the agent's fault."
     )
     n_cell = repeats
     if n_cell < SMALL_SAMPLE:
@@ -152,6 +157,36 @@ def render_report(result: SuiteResult) -> str:
         )
     add("- Every run's full trace (every model call, tool call and result) is in `traces/`.")
     return "\n".join(lines) + "\n"
+
+
+def reclassify(result: SuiteResult) -> SuiteResult:
+    """Re-derive every run's category from its recorded data with the CURRENT rules.
+
+    Raw observations (answers, checks, signals) never change; categories are an interpretation
+    and improve as the taxonomy improves (e.g. `gave_up`, added after the first full run).
+    """
+    runs = [
+        r.model_copy(
+            update={
+                "category": (
+                    category := categorize(
+                        stop_reason=r.stop_reason,
+                        final_answer=r.final_answer,
+                        checks_passed=[c.passed for c in r.checks],
+                        signals=r.signals,
+                        crashed=r.error is not None,
+                    )
+                ),
+                "passed": category == "pass",
+            }
+        )
+        for r in result.runs
+    ]
+    return result.model_copy(update={"runs": runs})
+
+
+def load_results(out_dir: Path) -> SuiteResult:
+    return SuiteResult.model_validate_json((out_dir / "results.json").read_text(encoding="utf-8"))
 
 
 def write_report(result: SuiteResult, out_dir: Path) -> Path:
