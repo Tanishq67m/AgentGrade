@@ -1,0 +1,8 @@
+# Cerebras free tier (check inference-docs.cerebras.ai/support/rate-limits).
+# Oct 2026 docs: 5 req/min, 1M tokens/day - the full suite fits in a day but runs slowly.
+provider: openai_compatible
+name: gpt-oss-120b
+base_url: https://api.cerebras.ai/v1
+api_key_env: CEREBRAS_API_KEY
+temperature: 0.7
+requests_per_minute: 4.5   # a little under the limit, so requests are spaced instead of rejected

@@ -1,0 +1,9 @@
+# Groq free tier (check your limits at console.groq.com/settings/limits).
+# Oct 2026 docs: 30 req/min, 1K req/day, 8K tokens/min, 200K tokens/day for this model.
+# Roughly 30-40 suite runs per day - use --variants to run a focused comparison.
+# Rate-limit (429) waits are handled automatically and excluded from latency.
+provider: openai_compatible
+name: openai/gpt-oss-120b
+base_url: https://api.groq.com/openai/v1
+api_key_env: GROQ_API_KEY
+temperature: 0.7

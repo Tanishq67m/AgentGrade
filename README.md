@@ -47,6 +47,18 @@ runs/<run_id>/
 
 Useful flags: `--repeats 5`, `--variants baseline,no-search`, `--tasks order_count`.
 
+## Other models (free tiers included)
+
+Any OpenAI-compatible API works: Groq, Cerebras, OpenRouter, OpenAI, or Ollama's `/v1` endpoint.
+Pick a config from [`model_configs/`](model_configs/) and put your key in a git-ignored `.env`:
+
+```bash
+cp .env.example .env          # then fill in e.g. GROQ_API_KEY=...
+uv run agentgrade run suites/shop.yaml --model model_configs/groq-gpt-oss-120b.yaml --variants baseline,glob-rules-only
+```
+
+Rate limits (HTTP 429) are handled automatically; time spent waiting is recorded separately and excluded from latency.
+
 ## A suite in brief
 
 ```yaml
@@ -114,7 +126,8 @@ src/agentgrade/
   mcp_client.py    MCP over stdio, read-only allowlist, description overrides
   trace.py         JSONL traces + secret redaction
   environment.py   Python / Node / package / git capture
-  models/          Ollama adapter, scripted fake model (tests)
+  models/          Ollama + OpenAI-compatible adapters, scripted fake model (tests)
+model_configs/     model choices (local Ollama, Groq, Cerebras, ...)
 suites/            evaluation suites
 fixtures/          ground-truth data agents work on
 docs/              PROJECT.md, STATUS.md, decisions/

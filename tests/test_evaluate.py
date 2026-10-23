@@ -172,3 +172,18 @@ async def test_report_command_reclassifies_stored_results(tmp_path: Path):
 
     assert main(["report", str(out_dir)]) == 0
     assert "gave_up" in (out_dir / "report.md").read_text()
+
+
+async def test_one_shared_model_instance_serves_every_run(tmp_path: Path):
+    # Rate-limit pacing lives in the model instance, so the CLI passes ONE instance for the
+    # whole suite. The suite must not close it between runs.
+    class Shared(ScriptedModel):
+        closed = False
+
+        async def aclose(self):
+            self.closed = True
+
+    shared = Shared([call_tool("read_note", name="todo"), final_answer("AgentGrade")] * 4)
+    result, _ = await run_suite(SUITE, lambda *_: shared, tmp_path, only_variants=["baseline"])
+    assert [r.passed for r in result.runs] == [True, True]
+    assert shared.closed is False

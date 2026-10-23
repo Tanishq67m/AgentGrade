@@ -105,13 +105,17 @@ async def _loop(
     for index in range(1, limits.max_steps + 1):
         call_start = time.perf_counter()
         response = await model.complete(messages, tools.specs())
-        latency_ms = (time.perf_counter() - call_start) * 1000
+        # rate-limit waits are the provider's queue, not the model's speed
+        elapsed_ms = (time.perf_counter() - call_start) * 1000
+        latency_ms = max(elapsed_ms - response.rate_limit_wait_ms, 0.0)
         usage = usage + response.usage
         if trace:
             trace.event(
                 "model_call",
                 step=index,
                 latency_ms=latency_ms,
+                rate_limit_wait_ms=response.rate_limit_wait_ms,
+                provider_meta=response.provider_meta,
                 usage=response.usage.model_dump(),
                 content=response.content,
                 thinking=response.thinking,

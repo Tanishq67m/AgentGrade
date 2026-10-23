@@ -27,9 +27,21 @@ class _Strict(BaseModel):
 
 
 class ModelConfig(_Strict):
-    provider: Literal["ollama"] = "ollama"
+    provider: Literal["ollama", "openai_compatible"] = "ollama"
     name: str
     temperature: float | None = None  # None = model default; recorded in every result either way
+    # openai_compatible only (Groq, Cerebras, OpenRouter, OpenAI, Ollama /v1, ...)
+    base_url: str | None = None
+    api_key_env: str | None = None  # NAME of the env var holding the key - never the key itself
+    requests_per_minute: float | None = None  # pace requests to stay under a free-tier limit
+
+    @model_validator(mode="after")
+    def _check_provider(self) -> ModelConfig:
+        if self.provider == "openai_compatible" and not self.base_url:
+            raise ValueError("openai_compatible models need a base_url")
+        if self.api_key_env and self.api_key_env.startswith(("sk-", "gsk_", "csk-")):
+            raise ValueError("api_key_env must be the NAME of an environment variable, not the key")
+        return self
 
 
 class ServerConfig(_Strict):
@@ -127,6 +139,11 @@ class Suite(_Strict):
 
     def max_steps_for(self, task: Task) -> int:
         return task.max_steps or self.max_steps
+
+
+def load_model_config(path: Path) -> ModelConfig:
+    """A model file lets the same suite run against another model: --model <file>."""
+    return ModelConfig.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
 
 
 def load_suite(path: Path) -> Suite:

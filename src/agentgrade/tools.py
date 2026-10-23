@@ -81,6 +81,10 @@ class ToolRegistry:
                 call, "unknown_tool", f"Unknown tool {call.name!r}. Available tools: {available}"
             )
 
+        if call.parse_error:
+            return self._error(
+                call, "invalid_arguments", f"Could not parse arguments: {call.parse_error}"
+            )
         errors = sorted(
             self._validators[call.name].iter_errors(call.arguments), key=lambda e: list(e.path)
         )

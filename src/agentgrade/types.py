@@ -27,6 +27,9 @@ class ToolCall(BaseModel):
     id: str
     name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
+    # Set when the model's arguments couldn't be parsed (e.g. malformed JSON). That's the
+    # MODEL's mistake, so it's reported back as invalid_arguments - not a harness crash.
+    parse_error: str | None = None
 
 
 class Message(BaseModel):
@@ -61,3 +64,7 @@ class ModelResponse(BaseModel):
     # Reasoning from "thinking" models. Kept for traces (explains *why* an agent failed),
     # never sent back as part of the conversation and never treated as the answer.
     thinking: str = ""
+    # Time spent waiting on provider rate limits (free tiers). Excluded from latency metrics.
+    rate_limit_wait_ms: float = 0.0
+    # What the provider reports about itself (served model id, fingerprint) - for reproducibility.
+    provider_meta: dict[str, Any] = Field(default_factory=dict)

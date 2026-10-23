@@ -19,5 +19,6 @@ An accepted record is never edited to change the decision - write a new record t
 | [0010](0010-run-tracing.md) | JSONL run traces, environment + model digest capture, whole-word secret redaction, numeric answer check | Accepted |
 | [0011](0011-suites-variants-reports.md) | YAML suites, one-change variants (tool subset / description overrides), repeats, failure classification, Wilson-interval reports | Accepted |
 | [0012](0012-taxonomy-and-variants-from-first-suite-run.md) | `gave_up` category, re-derivable categories (`agentgrade report`), ablation variants, agent-side `system_prompt_suffix` | Accepted |
+| [0013](0013-openai-compatible-models.md) | One OpenAI-compatible adapter (Groq/Cerebras/OpenRouter/OpenAI), model config files, 429 handling, keys via env | Accepted |
 
 Template: [TEMPLATE.md](TEMPLATE.md)

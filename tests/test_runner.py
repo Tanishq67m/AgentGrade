@@ -138,3 +138,14 @@ def test_regression_fake_call_tool_accepts_an_argument_called_name():
     response = call_tool("read_note", name="todo")
     assert response.tool_calls[0].name == "read_note"
     assert response.tool_calls[0].arguments == {"name": "todo"}
+
+
+async def test_rate_limit_wait_is_excluded_from_latency_and_traced(registry, tmp_path):
+    from agentgrade.trace import TraceWriter, read_trace
+    from agentgrade.types import ModelResponse
+
+    model = ScriptedModel([ModelResponse(content="12.5", rate_limit_wait_ms=5_000)])
+    with TraceWriter.create(tmp_path, run_id="r") as trace:
+        result = await run_agent(model, registry, TASK, trace=trace)
+    assert result.steps[0].model_latency_ms < 1_000  # not inflated by the 5 s queue wait
+    assert read_trace(trace.path)[1]["rate_limit_wait_ms"] == 5_000

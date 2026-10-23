@@ -1,0 +1,4 @@
+# Local, free, no key. Same model as the suite default.
+provider: ollama
+name: qwen3:4b-instruct
+temperature: 0.7

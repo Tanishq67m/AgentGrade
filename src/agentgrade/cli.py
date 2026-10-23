@@ -8,21 +8,34 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
 from pathlib import Path
 
 from agentgrade.evaluate import FATAL_ERRORS, RunSummary, run_suite
-from agentgrade.models.ollama import OllamaModel
+from agentgrade.models.factory import build_model
 from agentgrade.report import load_results, reclassify, write_report
-from agentgrade.suite import Suite, Task, Variant, load_suite
+from agentgrade.suite import load_model_config, load_suite
 
 
 def _csv(value: str | None) -> list[str] | None:
     return [v.strip() for v in value.split(",") if v.strip()] if value else None
 
 
-def _ollama_factory(suite: Suite, variant: Variant, task: Task, repeat: int) -> OllamaModel:
-    return OllamaModel(suite.model.name, temperature=suite.model.temperature)
+def load_dotenv(path: Path) -> None:
+    """Minimal .env support (KEY=VALUE lines) so API keys stay out of the shell and the repo.
+
+    Existing environment variables win. `.env` is git-ignored.
+    """
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.removeprefix("export ").strip()
+        os.environ.setdefault(key, value.strip().strip('"').strip("'"))
 
 
 def _print_progress(run: RunSummary) -> None:
@@ -36,24 +49,31 @@ def _print_progress(run: RunSummary) -> None:
 
 async def _run(args: argparse.Namespace) -> int:
     suite = load_suite(args.suite)
-    describe_model = OllamaModel(suite.model.name)
-    print(f"Suite: {suite.name} - model {suite.model.name}, temperature {suite.model.temperature}")
+    if args.model:
+        suite = suite.model_copy(update={"model": load_model_config(args.model)})
+    cfg = suite.model
+    print(f"Suite: {suite.name} - {cfg.provider} model {cfg.name}, temperature {cfg.temperature}")
+    try:
+        model = build_model(cfg)  # ONE instance for the whole suite: shared rate-limit pacing
+    except FATAL_ERRORS as exc:
+        print(f"Stopped: {exc}", file=sys.stderr)
+        return 1
     try:
         result, out_dir = await run_suite(
             suite,
-            _ollama_factory,
+            lambda *_: model,
             args.runs_dir,
             repeats=args.repeats,
             only_variants=_csv(args.variants),
             only_tasks=_csv(args.tasks),
             on_run=_print_progress,
-            describe_model=describe_model.describe,
+            describe_model=model.describe,
         )
     except FATAL_ERRORS as exc:
         print(f"\nStopped: {exc}", file=sys.stderr)
         return 1
     finally:
-        await describe_model.aclose()
+        await model.aclose()
 
     report = write_report(result, out_dir)
     passed = sum(r.passed for r in result.runs)
@@ -81,9 +101,11 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--variants", help="comma-separated variant names (default: all)")
     run.add_argument("--tasks", help="comma-separated task ids (default: all)")
     run.add_argument("--runs-dir", type=Path, default=Path("runs"))
+    run.add_argument("--model", type=Path, help="model config file overriding the suite's model")
     rep = sub.add_parser("report", help="re-render report.md for an existing run folder")
     rep.add_argument("run_dir", type=Path)
     args = parser.parse_args(argv)
+    load_dotenv(Path(".env"))
     try:
         if args.command == "report":
             return _report(args)

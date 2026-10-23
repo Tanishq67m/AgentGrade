@@ -22,14 +22,30 @@ from agentgrade.environment import collect_environment
 from agentgrade.mcp_client import McpServerConfig, McpServerStartError, connect
 from agentgrade.models.base import ModelAdapter
 from agentgrade.models.ollama import OllamaModelNotFoundError, OllamaUnavailableError
+from agentgrade.models.openai_compat import (
+    MissingApiKeyError,
+    ProviderAuthError,
+    ProviderModelNotFoundError,
+    ProviderRateLimitError,
+)
 from agentgrade.runner import DEFAULT_SYSTEM_PROMPT, RunLimits, run_agent
 from agentgrade.suite import ROOT_PLACEHOLDER, Suite, Task, Variant
 from agentgrade.tools import ToolRegistry
 from agentgrade.trace import TraceWriter, new_run_id
 
 # Errors that mean "the setup is broken" - retrying 50 more runs would just fail 50 more times.
-FATAL_ERRORS = (OllamaUnavailableError, OllamaModelNotFoundError, McpServerStartError)
+FATAL_ERRORS = (
+    OllamaUnavailableError,
+    OllamaModelNotFoundError,
+    McpServerStartError,
+    MissingApiKeyError,
+    ProviderAuthError,
+    ProviderModelNotFoundError,
+    ProviderRateLimitError,  # retries exhausted = quota gone; the next run would fail the same way
+)
 
+# Called once per run. It may return the same instance every time (and should, for
+# rate-limited providers); whoever created the instance closes it.
 ModelFactory = Callable[[Suite, Variant, Task, int], ModelAdapter]
 
 
@@ -193,10 +209,8 @@ async def _run_one(
                 if isinstance(cause, FATAL_ERRORS):
                     raise cause from exc
                 error = f"{type(cause).__name__}: {cause}"
-            finally:
-                close = getattr(model, "aclose", None)
-                if close:
-                    await close()
+            # The factory owns the model's lifecycle (one shared instance can pace requests
+            # across runs for rate-limited providers), so it is not closed here.
 
             checks = [evaluate_check(c, result) for c in task.checks] if result else []
             category, signals = classify(result, checks, crashed=error is not None)

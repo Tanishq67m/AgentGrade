@@ -3,6 +3,10 @@
 _Last updated: 2026-10-21_
 
 ## Current objective
+**M5a - stronger model, still free.** OpenAI-compatible adapter + model configs done (ADR 0013, 143 tests).
+Next: smoke-test via Ollama's /v1 endpoint, then re-run the shop suite on `gpt-oss-120b` (Groq or Cerebras free tier).
+
+Previous objective:
 **Milestone 4 - suites, variants, repeated runs, failure classification, reports.** Code + tests
 done. Suite runs 1 and 2 completed on the Mac; the before/after result replicated and the ablation
 identified the active change (results below). Next: M5 (more servers + a stronger model) and the public case study.
@@ -101,6 +105,7 @@ See [decisions/README.md](decisions/README.md) (0001-0010).
 | M2 | MCP client over stdio (filesystem server, fixture data) | Done |
 | M3 | Agent loop over MCP tools + trace recording | Done |
 | M4 | Suites, variants, repeats, failure classification, reports | Code done - real run pending |
+| M5a | Stronger model via OpenAI-compatible adapter (free tiers) | Code done - real run pending |
 | M5 | Suites for 2-3 more MCP servers; refine taxonomy; actionable recommendations in reports | Not started |
 | M6 | Public case study: before/after results + write-up; README results section | Not started |
 | Later | CI mode (fail a PR on reliability regression), HTML report, paid model adapters, container isolation | - |
