@@ -187,3 +187,23 @@ async def test_one_shared_model_instance_serves_every_run(tmp_path: Path):
     result, _ = await run_suite(SUITE, lambda *_: shared, tmp_path, only_variants=["baseline"])
     assert [r.passed for r in result.runs] == [True, True]
     assert shared.closed is False
+
+
+async def test_report_times_exclude_rate_limit_waits(tmp_path: Path):
+    from agentgrade.types import ModelResponse
+
+    def queued(suite, variant, task, repeat):
+        return ScriptedModel([
+            ModelResponse(tool_calls=call_tool("read_note", name="todo").tool_calls,
+                          rate_limit_wait_ms=60_000),
+            ModelResponse(content="AgentGrade", rate_limit_wait_ms=30_000),
+        ])  # fmt: skip
+
+    result, _ = await run_suite(SUITE, queued, tmp_path, only_variants=["baseline"], repeats=1)
+    assert result.runs[0].rate_limit_wait_ms == 90_000
+    report = render_report(result)
+    assert "| Rate-limit waits | 90s" in report
+    assert (
+        "| baseline | 1/1" in report
+        and "-" not in report.split("| baseline | 1/1")[1].split("|")[2]
+    )

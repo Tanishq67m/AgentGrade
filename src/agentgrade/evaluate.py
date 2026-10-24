@@ -77,7 +77,8 @@ class RunSummary(BaseModel):
     final_answer: str | None
     input_tokens: int
     output_tokens: int
-    duration_ms: float
+    duration_ms: float  # wall clock, INCLUDING provider rate-limit waits
+    rate_limit_wait_ms: float = 0.0  # time spent queued by the provider (free tiers)
     trace: str  # path relative to the suite run directory
     error: str | None = None
 
@@ -234,6 +235,9 @@ async def _run_one(
             input_tokens=result.usage.input_tokens if result else 0,
             output_tokens=result.usage.output_tokens if result else 0,
             duration_ms=(time.perf_counter() - start) * 1000,
+            rate_limit_wait_ms=(
+                sum(s.response.rate_limit_wait_ms for s in result.steps) if result else 0.0
+            ),
             trace=str(trace_rel),
             error=error,
         ),

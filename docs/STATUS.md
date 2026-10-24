@@ -3,8 +3,8 @@
 _Last updated: 2026-10-21_
 
 ## Current objective
-**M5a - stronger model, still free.** OpenAI-compatible adapter + model configs done (ADR 0013, 143 tests).
-Next: smoke-test via Ollama's /v1 endpoint, then re-run the shop suite on `gpt-oss-120b` (Groq or Cerebras free tier).
+**M5a - stronger model, still free.** Done: adapter works locally (Ollama /v1 smoke run PASS) and on Groq
+(`gpt-oss-120b`, 24 runs). Two reporting bugs found by that run and fixed (147 tests). Next: M5b second MCP server.
 
 Previous objective:
 **Milestone 4 - suites, variants, repeated runs, failure classification, reports.** Code + tests
@@ -34,6 +34,8 @@ identified the active change (results below). Next: M5 (more servers + a stronge
 
 | 2026-10-22 | **Suite run 2** `shop-filesystem`, 4 tasks x 6 variants x 3 | `qwen3:4b-instruct` (`0edcdef34593`), temp 0.7 | per variant | baseline **1/12** · glob-rules-only **9/12** (CI 47-91%) · explore-first-only **1/12** · clear-search-description **8/12** · no-search **1/12** · agent-context **3/12** (CI 9-53%) | Run `20261022T095739Z-f2965e`. Baseline (1/12) and combined description (9 -> 8/12) **replicated** across independent runs. Ablation: the precise glob rules carry the whole effect; the "explore first" sentence adds nothing. The agent-side system-prompt sentence only helped the one task whose prompt mentions files. `order_status_b42`: 0/18 (0/27 across both runs). |
 
+| 2026-10-23 | **Suite run 3** `shop-filesystem`, 4 tasks x 2 variants x 3 | `openai/gpt-oss-120b` on Groq free tier, temp 0.7 | per variant | baseline **11/12** (CI 65-99%) · glob-rules-only **12/12** (CI 76-100%) | Run `20261023T115016Z-9b0ee9`. The strong model barely needs the description fix (the 4B model went 1/12 -> 9/12). `order_status_b42` 3/3 in both variants (0/27 for the 4B model). The one failure was the model emitting malformed tool-call JSON (Groq 400 `tool_use_failed`), recorded as `harness_error` before the fix below. 129/159 model calls waited on rate limits (562 s total). |
+
 **Findings from run 1** (inputs for M5's failure taxonomy and recommendations):
 - Model-side: wrong tool mental model (non-recursive globs), **repetition loop without progress**, no strategy switch.
 - Tool-side (server UX): a bare `No matches found` gives no recovery hint; a message about `**/` would likely let the agent recover.
@@ -59,6 +61,13 @@ identified the active change (results below). Next: M5 (more servers + a stronge
   looking for the rates file: 5 `wrong_answer` runs on `shipping_cost_a17`. Candidate category: `incomplete_exploration`.
 - `order_status_b42` is never attempted (0/27). Unverified hypothesis: "current status" reads as a live-system query.
 - Caveat: one 4B local model, one small dataset, 3 repeats per cell. These are findings about this setup.
+
+**Findings from suite run 3 (strong model):**
+- **Tool-description quality matters most for small models.** gpt-oss-120b solved 11/12 with the original
+  description; the 4B model solved 1/12. Same tasks, same server.
+- The small model's dominant failure (`gave_up`, refusing without trying) **did not occur once** with the strong model.
+- Groq returned **41 distinct `system_fingerprint`s in 159 calls** of the same model id: a hosted model can't be
+  pinned like a local digest. Results on hosted models are reproducible only "as of that date".
 
 ## Current implementation state
 | Module | Responsibility |
@@ -88,6 +97,8 @@ identified the active change (results below). Next: M5 (more servers + a stronge
 | 2026-10-21 | `pyproject.toml` allowed `mcp>=1.0` though the code needs v2 | Bound written before checking the API | `mcp>=2.3,<3` | (review) |
 | 2026-10-21 | Trace showed `input_tokens: [REDACTED]` | Secret detection used substring `token` | Whole-word key matching | `test_trace.py::test_secret_key_detection` |
 | 2026-10-22 | `trace.event("check", **outcome)` raised TypeError; once fixed, the data's `type` would silently replace the event type | Keyword argument named `type` + data allowed to overwrite envelope keys (same class of bug as the M2 `name` clash) | Positional-only `event_type, /`; reserved keys `seq/ts/type` rejected | `test_trace.py::test_regression_event_data_cannot_overwrite_the_envelope` |
+| 2026-10-23 | Model's malformed tool-call JSON recorded as `harness_error` (blamed AgentGrade) | Groq validates tool JSON server-side and returns HTTP 400 `tool_use_failed` instead of the bad call; the adapter treated every 400 as a provider error | Recognise `tool_use_failed`, turn it into a `ToolCall` with `parse_error`, and feed it back as `invalid_arguments` (same as malformed JSON returned to us) | `test_openai_compat.py::test_regression_provider_rejecting_malformed_tool_json_is_the_models_failure` |
+| 2026-10-23 | Report "median time" 33 s, mostly free-tier queueing | Per-call latency excluded rate-limit waits, but the per-run duration in the report didn't | `RunSummary.rate_limit_wait_ms`; report times exclude it (8.7 s real median); old runs backfilled from traces | `test_evaluate.py::test_report_times_exclude_rate_limit_waits` |
 | 2026-10-22 | "Ollama is down" would be recorded as an ordinary failed run and the suite would keep going; error text read "unhandled errors in a TaskGroup" | Errors inside the MCP client context arrive wrapped in an `ExceptionGroup` (anyio), so `except FatalError` never matched | `root_cause()` unwraps before deciding fatal vs per-run | `test_evaluate.py::test_regression_fatal_error_inside_mcp_context_stops_the_suite` |
 
 ## Approved decisions
@@ -105,7 +116,7 @@ See [decisions/README.md](decisions/README.md) (0001-0010).
 | M2 | MCP client over stdio (filesystem server, fixture data) | Done |
 | M3 | Agent loop over MCP tools + trace recording | Done |
 | M4 | Suites, variants, repeats, failure classification, reports | Code done - real run pending |
-| M5a | Stronger model via OpenAI-compatible adapter (free tiers) | Code done - real run pending |
+| M5a | Stronger model via OpenAI-compatible adapter (free tiers) | Done |
 | M5 | Suites for 2-3 more MCP servers; refine taxonomy; actionable recommendations in reports | Not started |
 | M6 | Public case study: before/after results + write-up; README results section | Not started |
 | Later | CI mode (fail a PR on reliability regression), HTML report, paid model adapters, container isolation | - |

@@ -170,3 +170,38 @@ def test_api_key_is_sent_as_bearer_header(monkeypatch):
     monkeypatch.setenv("AG_TEST_KEY", "secret-123")
     model = OpenAICompatModel.from_env("m", base_url="https://x/v1", api_key_env="AG_TEST_KEY")
     assert model._client.headers["authorization"] == "Bearer secret-123"
+
+
+async def test_regression_provider_rejecting_malformed_tool_json_is_the_models_failure():
+    # Real Groq run (2026-10-23): gpt-oss-120b produced broken tool-call JSON, Groq answered
+    # HTTP 400 tool_use_failed, and the run was recorded as harness_error - wrongly blaming
+    # the infrastructure. It must instead go back to the model as invalid_arguments.
+    body = {"error": {
+        "message": "Failed to parse tool call arguments as JSON",
+        "type": "invalid_request_error",
+        "code": "tool_use_failed",
+        "failed_generation": '{"name": "read_text_file", "arguments": {"path": "/priv\\n\\n"}',
+    }}  # fmt: skip
+    r = await make(lambda req: httpx.Response(400, json=body)).complete(USER, TOOLS)
+    assert r.tool_calls[0].name == "read_text_file"
+    assert "provider rejected the tool call" in r.tool_calls[0].parse_error
+
+    tool = Tool(name="read_text_file", description="d", input_schema={"type": "object"},
+                func=lambda **_: "x")  # fmt: skip
+    registry = ToolRegistry([tool])
+    result = await registry.execute(r.tool_calls[0])
+    assert result.error_type == "invalid_arguments"
+
+
+async def test_other_400s_are_still_errors():
+    from agentgrade.models.openai_compat import ProviderResponseError
+
+    body = {"error": {"message": "bad request", "code": "invalid_value"}}
+    with pytest.raises(ProviderResponseError):
+        await make(lambda req: httpx.Response(400, json=body)).complete(USER, TOOLS)
+
+
+async def test_parse_error_wins_over_an_unknown_garbled_name():
+    registry = ToolRegistry([])
+    call = ToolCall(id="1", name="(unparseable)", parse_error="broken")
+    assert (await registry.execute(call)).error_type == "invalid_arguments"

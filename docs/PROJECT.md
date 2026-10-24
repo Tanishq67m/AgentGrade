@@ -158,11 +158,18 @@ The first real run failed; the trace explained why (see section 6).
    without trying". The real data showed the second was 92% of failures. **Lesson:** categories are an interpretation;
    keep raw observations and re-derive categories as understanding improves.
 
+11. **Blaming the harness for the model's mistake.** One strong-model run was labelled `harness_error`. The trace showed
+   the model had generated broken tool-call JSON, which Groq rejected with HTTP 400 before we ever saw it. Other
+   providers hand the broken call back. **Lesson:** the same agent failure can surface differently per provider, so the
+   adapter must normalise it. A report that blames the wrong component is wrong even if the pass rate is right.
+12. **Queueing reported as speed.** On the free tier, 129 of 159 calls waited on rate limits (562 s). Per-call latency
+   already excluded that, but run times in the report didn't (33 s "median" vs 8.7 s real).
+
 Each fixed bug has a regression test and an entry in the STATUS bug log.
 
 ## 6. Current state and known limitations
 
-- 120 automated tests (unit, fake-HTTP, real-stdio integration, end-to-end suite runs).
+- 147 automated tests (unit, fake-HTTP, real-stdio integration, end-to-end suite runs).
 - **First real result (failed, and informative):** `qwen3:4b-instruct` on the official filesystem server hit the
   10-step limit. It searched with non-recursive glob patterns (`order*.json`) for a file in a subfolder,
   repeated near-identical searches 7 times, and never tried the listing tools. The server was verified correct.
@@ -182,8 +189,12 @@ Each fixed bug has a regression test and an entry in the STATUS bug log.
   and only on the task whose prompt mentions files. For this model, fixing the tool's description beat fixing the
   agent's prompt. `order_status_b42` was never attempted in 27 runs. A new secondary failure showed up: stopping after
   the first file instead of looking for the rates file.
-- These results cover one 4B local model, one small dataset and 3 repeats per cell. They are findings about this
-  setup, not general claims, and re-running on other servers and a stronger model is the next step.
+- **Strong model (gpt-oss-120b on Groq's free tier, 24 runs):** baseline **11/12**, with the glob fix **12/12**.
+  The same original description that held the 4B model to 1/12 barely affects a 120B model, and the small model's
+  main failure (refusing without trying) never happened. **Conclusion so far: vague tool descriptions mostly hurt
+  small and cheap models**, which are exactly the ones teams use to cut costs. That's a narrower, more defensible
+  claim than "bad descriptions break agents".
+- Still one server and one small dataset. A second MCP server is next.
 - Limitations: stdio only; one model provider; only `max_steps` as a limit (no token/time/cost limits yet);
   key-based redaction only; trusted servers only. Server tool descriptions go straight into the prompt, which is a
   prompt-injection risk accepted only because the servers are trusted. Startup failures are reported only after a 60 s timeout.

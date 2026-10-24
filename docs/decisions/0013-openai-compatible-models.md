@@ -29,6 +29,13 @@ Option 2: `models/openai_compat.py`, plain `httpx` (no SDK), configured by small
 | Identity | Provider's served `model` and `system_fingerprint` recorded per call (`provider_meta`) | Hosted models can change silently; the fingerprint is the closest thing to a digest. |
 | Fatal errors | Missing key, 401/403, 404 model, quota exhausted | Fail fast instead of recording 72 identical failures. |
 
+## Update after the first hosted run (2026-10-23)
+- Groq rejects malformed tool-call JSON with HTTP 400 `tool_use_failed` instead of returning it. The adapter now
+  converts that into a `ToolCall` with `parse_error`, so it counts as the model's `invalid_arguments`, consistent
+  with providers that return the broken call.
+- `system_fingerprint` changed on most calls (41 distinct in 159), so it identifies a deployment snapshot, not a model.
+- Rate-limit waits are now also stored per run and excluded from report run times.
+
 ## Consequences and limitations
 - Hosted models are less reproducible than a local digest: providers can update them. We record what they report.
 - Free tiers send prompts to a third party. Fine for the synthetic `fixtures/shop` data; never use real private data.

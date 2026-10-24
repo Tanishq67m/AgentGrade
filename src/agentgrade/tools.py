@@ -74,6 +74,10 @@ class ToolRegistry:
         return [tool.spec for tool in self._tools.values()]
 
     async def execute(self, call: ToolCall) -> ToolResult:
+        if call.parse_error:
+            return self._error(
+                call, "invalid_arguments", f"Could not parse arguments: {call.parse_error}"
+            )
         tool = self._tools.get(call.name)
         if tool is None:
             available = ", ".join(sorted(self._tools)) or "(none)"
@@ -81,10 +85,6 @@ class ToolRegistry:
                 call, "unknown_tool", f"Unknown tool {call.name!r}. Available tools: {available}"
             )
 
-        if call.parse_error:
-            return self._error(
-                call, "invalid_arguments", f"Could not parse arguments: {call.parse_error}"
-            )
         errors = sorted(
             self._validators[call.name].iter_errors(call.arguments), key=lambda e: list(e.path)
         )

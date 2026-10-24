@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import time
 import uuid
 from typing import Any
@@ -103,6 +104,12 @@ class OpenAICompatModel:
             delay = min(_retry_after_s(response, attempt), self._max_wait_s)
             await self._sleep(delay)
             waited += delay
+        rejected = _rejected_tool_call(response)
+        if rejected is not None:
+            # The MODEL produced malformed tool-call JSON and the provider refused it (Groq:
+            # 400 tool_use_failed). Same rule as malformed JSON returned to us: report it back
+            # to the model as invalid_arguments - it's an agent failure, not a harness crash.
+            return ModelResponse(tool_calls=[rejected], rate_limit_wait_ms=waited * 1000)
         self._raise_for_status(response)
         parsed = self.parse_response(_json(response))
         return parsed.model_copy(update={"rate_limit_wait_ms": waited * 1000})
@@ -183,6 +190,29 @@ class OpenAICompatModel:
             )
         if response.status_code >= 400:
             raise ProviderResponseError(f"HTTP {response.status_code}: {response.text[:300]}")
+
+
+_NAME_IN_GENERATION = re.compile(r'"name"\s*:\s*"([^"]+)"')
+
+
+def _rejected_tool_call(response: httpx.Response) -> ToolCall | None:
+    """Recognise a provider rejecting the model's own malformed tool call (HTTP 400)."""
+    if response.status_code != 400:
+        return None
+    try:
+        error = response.json().get("error") or {}
+    except ValueError:
+        return None
+    if error.get("code") != "tool_use_failed":
+        return None
+    generation = str(error.get("failed_generation") or "")
+    match = _NAME_IN_GENERATION.search(generation)
+    return ToolCall(
+        id=f"call_{uuid.uuid4().hex[:8]}",
+        name=match.group(1) if match else "(unparseable)",
+        parse_error=f"provider rejected the tool call: {error.get('message', '')} "
+        f"- generated: {generation[:200]!r}",
+    )
 
 
 def _json(response: httpx.Response) -> dict[str, Any]:

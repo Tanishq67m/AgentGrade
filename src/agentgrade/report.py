@@ -14,6 +14,7 @@ from pathlib import Path
 
 from agentgrade.classify import categorize
 from agentgrade.evaluate import RunSummary, SuiteResult
+from agentgrade.trace import read_trace
 
 SMALL_SAMPLE = 10
 
@@ -42,7 +43,11 @@ def _failures(runs: list[RunSummary]) -> str:
 
 
 def _median_s(runs: list[RunSummary]) -> str:
-    return f"{statistics.median(r.duration_ms for r in runs) / 1000:.1f}s" if runs else "-"
+    """Median run time EXCLUDING provider rate-limit waits (queueing isn't model speed)."""
+    if not runs:
+        return "-"
+    active = [max(r.duration_ms - r.rate_limit_wait_ms, 0.0) for r in runs]
+    return f"{statistics.median(active) / 1000:.1f}s"
 
 
 def _mean_tokens(runs: list[RunSummary]) -> str:
@@ -67,10 +72,12 @@ def render_report(result: SuiteResult) -> str:
     add(f"# AgentGrade report - {result.suite}\n")
     add(f"Run `{result.suite_run_id}` - {result.started_at[:19]}Z to {result.finished_at[:19]}Z\n")
     add("| | |\n|---|---|")
-    digest = (model.get("digest") or "unknown")[:12]
-    add(
-        f"| Model | `{model.get('name')}` (digest `{digest}`, temperature {model.get('temperature')}) |"
-    )
+    if model.get("provider") == "openai_compatible":
+        # Hosted: no pinnable digest. Provider fingerprints are per call (and vary) - see traces.
+        identity = f"hosted at {model.get('base_url')}; identity per call in traces"
+    else:
+        identity = f"digest `{(model.get('digest') or 'unknown')[:12]}`"
+    add(f"| Model | `{model.get('name')}` ({identity}, temperature {model.get('temperature')}) |")
     add(
         f"| Server | {server.get('server_name')} {server.get('server_version')} (protocol {server.get('protocol_version')}) |"
     )
@@ -81,6 +88,11 @@ def render_report(result: SuiteResult) -> str:
     add(
         f"| Code | agentgrade {env.get('agentgrade_version')}, commit `{(git.get('commit') or 'n/a')[:7]}`{' (dirty)' if git.get('dirty') else ''} |"
     )
+    waited = sum(r.rate_limit_wait_ms for r in result.runs) / 1000
+    if waited:
+        add(
+            f"| Rate-limit waits | {waited:.0f}s queued by the provider (excluded from times below) |"
+        )
     add(
         f"| Environment | Python {env.get('python')}, Node {env.get('node')}, {env.get('platform')} |\n"
     )
@@ -186,7 +198,21 @@ def reclassify(result: SuiteResult) -> SuiteResult:
 
 
 def load_results(out_dir: Path) -> SuiteResult:
-    return SuiteResult.model_validate_json((out_dir / "results.json").read_text(encoding="utf-8"))
+    result = SuiteResult.model_validate_json((out_dir / "results.json").read_text(encoding="utf-8"))
+    # Results written before rate-limit waits were stored per run: recover them from the traces,
+    # which have recorded `rate_limit_wait_ms` on every model call since the adapter was added.
+    runs = []
+    for r in result.runs:
+        trace = out_dir / r.trace
+        if not r.rate_limit_wait_ms and trace.is_file():
+            waited = sum(
+                e.get("rate_limit_wait_ms", 0.0)
+                for e in read_trace(trace)
+                if e["type"] == "model_call"
+            )
+            r = r.model_copy(update={"rate_limit_wait_ms": waited})
+        runs.append(r)
+    return result.model_copy(update={"runs": runs})
 
 
 def write_report(result: SuiteResult, out_dir: Path) -> Path:
