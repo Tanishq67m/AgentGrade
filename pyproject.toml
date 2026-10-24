@@ -50,3 +50,5 @@ select = ["E", "F", "I", "B", "UP"]
 "src/agentgrade/report.py" = ["E501"]
 # parametrize tables of invalid suite fragments
 "tests/test_suite.py" = ["E501"]
+# fixture data tables read better unwrapped
+"fixtures/**/*.py" = ["E501"]

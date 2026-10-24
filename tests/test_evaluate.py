@@ -207,3 +207,68 @@ async def test_report_times_exclude_rate_limit_waits(tmp_path: Path):
         "| baseline | 1/1" in report
         and "-" not in report.split("| baseline | 1/1")[1].split("|")[2]
     )
+
+
+def _with_server(**changes):
+    server = SUITE.server.model_copy(update=changes)
+    return SUITE.model_copy(update={"server": server, "variants": [SUITE.variants[0]]})
+
+
+def _solver(suite, variant, task, repeat):
+    model = ScriptedModel([call_tool("read_note", name="todo"), final_answer("AgentGrade")])
+    created.append(model)
+    return model
+
+
+async def test_setup_runs_in_the_sandbox_before_the_server(tmp_path: Path):
+    marker = "import pathlib; pathlib.Path('built.txt').write_text('ok'); print('setup ran')"
+    listing = "import os; print(sorted(os.listdir('.')))"
+    suite = _with_server(setup=[["{python}", "-c", marker], ["{python}", "-c", listing]])
+    _, out_dir = await run_suite(suite, _solver, tmp_path, repeats=1)
+    log = (out_dir / "server_logs" / "baseline__todo__r1.log").read_text()
+    assert "setup ran" in log
+    assert "['built.txt']" in log  # second command saw the first one's file, in {root}
+
+
+async def test_failing_setup_stops_the_suite(tmp_path: Path):
+    import pytest
+
+    from agentgrade.evaluate import SetupError
+
+    suite = _with_server(setup=[["{python}", "-c", "import sys; print('boom'); sys.exit(3)"]])
+    with pytest.raises(SetupError, match="exit 3"):
+        await run_suite(suite, _solver, tmp_path)
+
+
+async def test_missing_setup_command_is_a_clear_setup_error(tmp_path: Path):
+    import pytest
+
+    from agentgrade.evaluate import SetupError
+
+    suite = _with_server(setup=[["definitely-not-installed-xyz"]])
+    with pytest.raises(SetupError, match="Could not run setup command"):
+        await run_suite(suite, _solver, tmp_path)
+
+
+async def test_root_placeholder_is_filled_in_prompts(tmp_path: Path):
+    task = SUITE.tasks[0].model_copy(update={"prompt": "Check the notes in {root}."})
+    variant = SUITE.variants[0].model_copy(update={"system_prompt_suffix": "Data lives in {root}."})
+    suite = SUITE.model_copy(update={"tasks": [task], "variants": [variant]})
+    created.clear()
+    await run_suite(suite, _solver, tmp_path, repeats=1)
+    system, user = created[0].received[0][:2]
+    assert "{root}" not in system.content + user.content
+    assert "agentgrade-" in user.content and system.content.endswith("sandbox.")
+
+
+async def test_server_stderr_goes_to_the_run_log_not_the_console(tmp_path: Path, capfd):
+    noisy = (
+        "import sys, runpy; sys.stderr.write('NOISY-SERVER-WARNING\\n'); sys.stderr.flush(); "
+        f"runpy.run_path({NOTES_SERVER!r}, run_name='__main__')"
+    )
+    suite = _with_server(args=["-c", noisy])
+    _, out_dir = await run_suite(suite, _solver, tmp_path, repeats=1)
+    assert (
+        "NOISY-SERVER-WARNING" in (out_dir / "server_logs" / "baseline__todo__r1.log").read_text()
+    )
+    assert "NOISY-SERVER-WARNING" not in capfd.readouterr().err

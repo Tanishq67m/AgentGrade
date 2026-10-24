@@ -1,0 +1,73 @@
+# AgentGrade suite: can an agent answer questions about a git repository using the
+# official git MCP server (mcp-server-git)?
+#
+#   uv run agentgrade run suites/git.yaml
+#
+# Every run builds the SAME repository from scratch (fixtures/git_repo/build_repo.py:
+# fixed authors, dates and contents -> identical commit hashes). Ground truth is listed
+# there and verified by tests/test_git_fixture.py.
+
+name: git-repo
+description: Read-only questions about a small project's history via mcp-server-git.
+
+model:
+  provider: ollama
+  name: qwen3:4b-instruct
+  temperature: 0.7
+
+server:
+  command: uvx
+  args: ["mcp-server-git==2026.10.10", "--repository", "{root}"]
+  setup:
+    - ["{python}", "{suite_dir}/../fixtures/git_repo/build_repo.py", "{root}"]
+  timeout_s: 120   # first run downloads the server
+
+tools:   # read-only per the server's own annotations; write tools (commit, add, reset,
+         # create_branch, checkout) are never exposed
+  - git_status
+  - git_diff_unstaged
+  - git_diff_staged
+  - git_diff
+  - git_log
+  - git_show
+  - git_branch
+
+max_steps: 10
+repeats: 3
+
+variants:
+  # Every git tool requires `repo_path`, but the server offers no tool to discover it.
+  # A wrong path returns an error that names the allowed repository, so a careful agent
+  # can recover. These two variants measure exactly that.
+  - name: baseline
+    description: The agent is not told where the repository is.
+
+  - name: repo-path-given
+    description: Agent-side change only - one sentence in the system prompt gives the repository path.
+    system_prompt_suffix: The user's git repository is at {root}.
+
+tasks:
+  - id: last_commit_author
+    prompt: Who made the most recent commit on the main branch of my project's git repository?
+    checks:
+      - {type: answer_contains, expected: Ben}
+
+  - id: rounding_fix_author
+    prompt: Who fixed the rounding bug in my project?
+    checks:
+      - {type: answer_contains, expected: Chen}
+
+  - id: current_version
+    prompt: What version is my project at, according to the VERSION file in its repository?
+    checks:
+      - {type: answer_contains, expected: "1.1.0"}
+
+  - id: uncommitted_file
+    prompt: Which file in my repository has changes that haven't been committed yet?
+    checks:
+      - {type: answer_contains, expected: README}
+
+  - id: unmerged_branch
+    prompt: Is there a branch in my repository with work that hasn't been merged into main? What is it called?
+    checks:
+      - {type: answer_contains, expected: feature/discounts}

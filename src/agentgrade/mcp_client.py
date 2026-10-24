@@ -16,9 +16,11 @@ import json
 from collections.abc import AsyncIterator, Iterable
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from mcp import Client, StdioServerParameters
+from mcp.client.stdio import stdio_client
 from mcp.types import CallToolResult
 from mcp.types import Tool as McpTool
 from pydantic import BaseModel, Field
@@ -35,6 +37,7 @@ class McpServerConfig(BaseModel):
     env: dict[str, str] | None = None  # extra env vars; the SDK passes only a safe default set
     cwd: str | None = None
     timeout_s: float = 30.0  # per-request read timeout
+    stderr_log: Path | None = None  # server's stderr goes here instead of the console
 
 
 class McpError(RuntimeError):
@@ -160,9 +163,14 @@ async def connect(config: McpServerConfig) -> AsyncIterator[McpConnection]:
         command=config.command, args=config.args, env=config.env, cwd=config.cwd
     )
     async with AsyncExitStack() as stack:
+        target: Any = params
+        if config.stderr_log is not None:
+            config.stderr_log.parent.mkdir(parents=True, exist_ok=True)
+            errlog = stack.enter_context(config.stderr_log.open("a", encoding="utf-8"))
+            target = stdio_client(params, errlog=errlog)  # same transport, logs to a file
         try:
             client = await stack.enter_async_context(
-                Client(params, read_timeout_seconds=config.timeout_s)
+                Client(target, read_timeout_seconds=config.timeout_s)
             )
         except Exception as exc:  # noqa: BLE001 - every startup failure means the same thing
             raise McpServerStartError(

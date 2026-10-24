@@ -6,7 +6,9 @@ leaks from one run into the next and every run is independently reproducible.
 
 from __future__ import annotations
 
+import asyncio
 import shutil
+import sys
 import tempfile
 import time
 from collections.abc import Awaitable, Callable
@@ -19,7 +21,7 @@ from pydantic import BaseModel
 from agentgrade.checks import CheckOutcome, evaluate_check
 from agentgrade.classify import Category, Signals, classify
 from agentgrade.environment import collect_environment
-from agentgrade.mcp_client import McpServerConfig, McpServerStartError, connect
+from agentgrade.mcp_client import McpError, McpServerConfig, McpServerStartError, connect
 from agentgrade.models.base import ModelAdapter
 from agentgrade.models.ollama import OllamaModelNotFoundError, OllamaUnavailableError
 from agentgrade.models.openai_compat import (
@@ -29,12 +31,18 @@ from agentgrade.models.openai_compat import (
     ProviderRateLimitError,
 )
 from agentgrade.runner import DEFAULT_SYSTEM_PROMPT, RunLimits, run_agent
-from agentgrade.suite import ROOT_PLACEHOLDER, Suite, Task, Variant
+from agentgrade.suite import PYTHON_PLACEHOLDER, ROOT_PLACEHOLDER, Suite, Task, Variant
 from agentgrade.tools import ToolRegistry
 from agentgrade.trace import TraceWriter, new_run_id
 
+
 # Errors that mean "the setup is broken" - retrying 50 more runs would just fail 50 more times.
+class SetupError(McpError):
+    """A setup command failed. Setup is deterministic, so later runs would fail the same way."""
+
+
 FATAL_ERRORS = (
+    SetupError,
     OllamaUnavailableError,
     OllamaModelNotFoundError,
     McpServerStartError,
@@ -49,10 +57,40 @@ FATAL_ERRORS = (
 ModelFactory = Callable[[Suite, Variant, Task, int], ModelAdapter]
 
 
-def system_prompt_for(variant: Variant) -> str:
+def fill(text: str, root: Path) -> str:
+    return text.replace(ROOT_PLACEHOLDER, str(root)).replace(PYTHON_PLACEHOLDER, sys.executable)
+
+
+def system_prompt_for(variant: Variant, root: Path | None = None) -> str:
     if variant.system_prompt_suffix:
-        return f"{DEFAULT_SYSTEM_PROMPT}\n\n{variant.system_prompt_suffix.strip()}"
+        suffix = variant.system_prompt_suffix.strip()
+        return f"{DEFAULT_SYSTEM_PROMPT}\n\n{fill(suffix, root) if root else suffix}"
     return DEFAULT_SYSTEM_PROMPT
+
+
+async def run_setup(commands: list[list[str]], root: Path, log: Path) -> None:
+    """Run setup commands in the sandbox; output goes to the run's server log."""
+    log.parent.mkdir(parents=True, exist_ok=True)
+    for cmd in commands:
+        argv = [fill(a, root) for a in cmd]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv, cwd=root, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+            )
+        except OSError as exc:  # e.g. the command (git, uvx, ...) isn't installed
+            raise SetupError(f"Could not run setup command {argv}: {exc}") from exc
+        try:
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=120)
+        except TimeoutError:
+            proc.kill()
+            raise SetupError(f"Setup command timed out: {argv}") from None
+        with log.open("a", encoding="utf-8") as f:
+            f.write(f"$ {' '.join(argv)}\n{out.decode(errors='replace')}\n")
+        if proc.returncode != 0:
+            raise SetupError(
+                f"Setup command failed (exit {proc.returncode}): {argv}\n"
+                f"{out.decode(errors='replace')[-500:]}"
+            )
 
 
 def root_cause(exc: BaseException) -> BaseException:
@@ -156,7 +194,9 @@ async def _run_one(
     environment: dict[str, Any],
     model_info: dict[str, Any],
 ) -> tuple[RunSummary, dict[str, Any]]:
-    trace_rel = Path("traces") / f"{variant.name}__{task.id}__r{repeat}.jsonl"
+    run_name = f"{variant.name}__{task.id}__r{repeat}"
+    trace_rel = Path("traces") / f"{run_name}.jsonl"
+    server_log = out_dir / "server_logs" / f"{run_name}.log"
     model = model_factory(suite, variant, task, repeat)
     start = time.perf_counter()
     server_info: dict[str, Any] = {}
@@ -168,11 +208,13 @@ async def _run_one(
             shutil.copytree(suite.server.fixture, root)
         else:
             root.mkdir()
+        await run_setup(suite.server.setup, root, server_log)
         server = McpServerConfig(
             name=suite.name,
             command=suite.server.command,
             args=[a.replace(ROOT_PLACEHOLDER, str(root)) for a in suite.server.args],
             timeout_s=suite.server.timeout_s,
+            stderr_log=server_log,
         )
         with TraceWriter(out_dir / trace_rel) as trace:
             try:
@@ -187,8 +229,8 @@ async def _run_one(
                     result = await run_agent(
                         model,
                         registry,
-                        task.prompt,
-                        system_prompt=system_prompt_for(variant),
+                        fill(task.prompt, root),
+                        system_prompt=system_prompt_for(variant, root),
                         limits=RunLimits(max_steps=suite.max_steps_for(task)),
                         trace=trace,
                         metadata={

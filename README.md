@@ -25,7 +25,7 @@ real workflow, and MCP server authors who want to see where models struggle with
 
 ## Quick start
 
-Requires [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com) and Node.js 24+ (for the filesystem MCP server).
+Requires [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com), Node.js 24+ (filesystem MCP server) and git (git MCP server).
 
 ```bash
 git clone https://github.com/Tanishq67m/AgentGrade.git
@@ -43,6 +43,12 @@ runs/<run_id>/
   report.md        pass rates (with 95% CI), failure categories, before/after table, failed runs + why
   results.json     everything, machine-readable
   traces/          one JSONL trace per run: every model call, tool call and result
+```
+
+A second suite runs against the official **git** MCP server, on a repository rebuilt identically before every run:
+
+```bash
+uv run agentgrade run suites/git.yaml
 ```
 
 Useful flags: `--repeats 5`, `--variants baseline,no-search`, `--tasks order_count`.
@@ -128,8 +134,8 @@ src/agentgrade/
   environment.py   Python / Node / package / git capture
   models/          Ollama + OpenAI-compatible adapters, scripted fake model (tests)
 model_configs/     model choices (local Ollama, Groq, Cerebras, ...)
-suites/            evaluation suites
-fixtures/          ground-truth data agents work on
+suites/            evaluation suites (shop.yaml: filesystem server, git.yaml: git server)
+fixtures/          ground-truth data agents work on (git_repo/build_repo.py builds a deterministic repo)
 docs/              PROJECT.md, STATUS.md, decisions/
 ```
 

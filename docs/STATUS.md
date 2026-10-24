@@ -3,6 +3,11 @@
 _Last updated: 2026-10-21_
 
 ## Current objective
+**M5b - second MCP server (git).** Suite `setup` step, deterministic git fixture, server logs to file,
+`suites/git.yaml` (5 tasks x 2 variants) done and verified on the real `mcp-server-git` with a staged agent
+(ADR 0014, 155 tests). Next: first real run on the Mac.
+
+Previous:
 **M5a - stronger model, still free.** Done: adapter works locally (Ollama /v1 smoke run PASS) and on Groq
 (`gpt-oss-120b`, 24 runs). Two reporting bugs found by that run and fixed (147 tests). Next: M5b second MCP server.
 
@@ -117,6 +122,7 @@ See [decisions/README.md](decisions/README.md) (0001-0010).
 | M3 | Agent loop over MCP tools + trace recording | Done |
 | M4 | Suites, variants, repeats, failure classification, reports | Code done - real run pending |
 | M5a | Stronger model via OpenAI-compatible adapter (free tiers) | Done |
-| M5 | Suites for 2-3 more MCP servers; refine taxonomy; actionable recommendations in reports | Not started |
+| M5b | Second server: git (`suites/git.yaml`) | Code done - real run pending |
+| M5 | Third server; refine taxonomy; actionable recommendations in reports | Not started |
 | M6 | Public case study: before/after results + write-up; README results section | Not started |
 | Later | CI mode (fail a PR on reliability regression), HTML report, paid model adapters, container isolation | - |

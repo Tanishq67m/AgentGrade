@@ -18,7 +18,9 @@ from typing import Annotated, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-ROOT_PLACEHOLDER = "{root}"
+ROOT_PLACEHOLDER = "{root}"  # the per-run sandbox directory
+PYTHON_PLACEHOLDER = "{python}"  # the Python running AgentGrade
+SUITE_DIR_PLACEHOLDER = "{suite_dir}"  # folder of the suite file (resolved when loading)
 
 
 class _Strict(BaseModel):
@@ -50,6 +52,9 @@ class ServerConfig(_Strict):
     command: str
     args: list[str] = Field(default_factory=list)
     fixture: Path | None = None  # copied fresh for EVERY run; the server only sees the copy
+    # Commands run in {root} BEFORE the server starts, every run (e.g. build a git repo).
+    # argv lists, no shell. Placeholders: {root}, {python}, {suite_dir}.
+    setup: list[list[str]] = Field(default_factory=list)
     timeout_s: float = 60.0
 
 
@@ -83,7 +88,7 @@ Check = Annotated[
 
 class Task(_Strict):
     id: str
-    prompt: str
+    prompt: str  # may contain {root} (the sandbox path), e.g. "the repository at {root}"
     checks: list[Check] = Field(min_length=1)  # every task needs at least one code-based check
     max_steps: int | None = None
 
@@ -150,6 +155,11 @@ def load_suite(path: Path) -> Suite:
     """Load and validate a suite. Relative fixture paths resolve against the suite file."""
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     suite = Suite.model_validate(data)
+    suite_dir = str(path.parent.resolve())
+    suite.server.args = [a.replace(SUITE_DIR_PLACEHOLDER, suite_dir) for a in suite.server.args]
+    suite.server.setup = [
+        [a.replace(SUITE_DIR_PLACEHOLDER, suite_dir) for a in cmd] for cmd in suite.server.setup
+    ]
     fixture = suite.server.fixture
     if fixture is not None and not fixture.is_absolute():
         suite.server.fixture = (path.parent / fixture).resolve()
