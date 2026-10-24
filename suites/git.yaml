@@ -46,6 +46,32 @@ variants:
     description: Agent-side change only - one sentence in the system prompt gives the repository path.
     system_prompt_suffix: The user's git repository is at {root}.
 
+  # Added after git suite run 1 (2026-10-24), from what the traces showed:
+  # - 9/9 baseline failures were `stopped_after_error`: the error named the correct path, but the
+  #   agent asked the user instead of retrying. -> retry-on-error (compare with baseline)
+  # - last_commit_author failed 0/6 even with the path: git_log was called with
+  #   start_timestamp="now", end_timestamp="now", returned an empty history, and the agent
+  #   concluded "no commits". -> path-given-clear-log (compare with repo-path-given)
+  - name: retry-on-error
+    description: >
+      Agent-side, path still NOT given: one generic sentence telling the agent to use error
+      messages to fix its call. Compare with baseline.
+    system_prompt_suffix: >-
+      If a tool returns an error, read the error message carefully and retry with corrected
+      arguments before answering.
+
+  - name: path-given-clear-log
+    description: >
+      Same as repo-path-given plus ONE server-side change: git_log's description says it returns
+      newest commits first and that the timestamp filters are optional. Compare with repo-path-given.
+    system_prompt_suffix: The user's git repository is at {root}.
+    description_overrides:
+      git_log: >-
+        Shows the commit log, newest commit first. To see the latest commits, call it with just
+        repo_path (and optionally max_count). start_timestamp and end_timestamp are OPTIONAL
+        filters for a specific date range - leave them out unless the user asks about particular
+        dates, because a narrow range returns no commits.
+
 tasks:
   - id: last_commit_author
     prompt: Who made the most recent commit on the main branch of my project's git repository?

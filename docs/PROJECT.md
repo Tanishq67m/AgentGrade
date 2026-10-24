@@ -169,7 +169,7 @@ Each fixed bug has a regression test and an entry in the STATUS bug log.
 
 ## 6. Current state and known limitations
 
-- 147 automated tests (unit, fake-HTTP, real-stdio integration, end-to-end suite runs).
+- 157 automated tests (unit, fake-HTTP, real-stdio integration, end-to-end suite runs, fixture ground truth).
 - **First real result (failed, and informative):** `qwen3:4b-instruct` on the official filesystem server hit the
   10-step limit. It searched with non-recursive glob patterns (`order*.json`) for a file in a subfolder,
   repeated near-identical searches 7 times, and never tried the listing tools. The server was verified correct.
@@ -194,7 +194,12 @@ Each fixed bug has a regression test and an entry in the STATUS bug log.
   main failure (refusing without trying) never happened. **Conclusion so far: vague tool descriptions mostly hurt
   small and cheap models**, which are exactly the ones teams use to cut costs. That's a narrower, more defensible
   claim than "bad descriptions break agents".
-- Still one server and one small dataset. A second MCP server is next.
+- **Second server (official git MCP server, 30 runs, 4B model):** not told where the repo is **6/15**, told **12/15**.
+  Two new failure patterns: (1) **recoverable errors aren't recovered**: the error named the exact correct path,
+  but in all 9 baseline failures the agent gave up and asked the user (new category `stopped_after_error`).
+  (2) **"most recent commit" failed 0/6 even with the path**: the model filtered `git_log` to a zero-length window
+  ("now" to "now"), got an empty history and confidently answered "there are no commits". Across both servers the
+  same anti-pattern shows up: **empty results with no guidance lead agents to wrong conclusions.**
 - Limitations: stdio only; one model provider; only `max_steps` as a limit (no token/time/cost limits yet);
   key-based redaction only; trusted servers only. Server tool descriptions go straight into the prompt, which is a
   prompt-injection risk accepted only because the servers are trusted. Startup failures are reported only after a 60 s timeout.

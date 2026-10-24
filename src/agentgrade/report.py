@@ -143,6 +143,9 @@ def render_report(result: SuiteResult) -> str:
                         f"same tool returned an identical result {r.signals.longest_repeat}x in a row; "
                         + why
                     )
+                elif r.category == "stopped_after_error":
+                    answer = (r.final_answer or "").replace("\n", " ").replace("|", "\\|")
+                    why = f"all {r.signals.tool_calls} tool call(s) errored, then answered: {answer[:60]!r}"
                 elif r.category == "gave_up":
                     answer = (r.final_answer or "").replace("\n", " ").replace("|", "\\|")
                     why = f"no tool called; answered: {answer[:70]!r}"
@@ -158,6 +161,7 @@ def render_report(result: SuiteResult) -> str:
     add(
         "- Categories: `loop` = step limit hit while one tool kept returning the same result; "
         "`step_limit` = step limit without repetition; `gave_up` = answered without calling any tool; "
+        "`stopped_after_error` = every tool call errored and the agent answered instead of retrying; "
         "`wrong_answer` = used tools and answered, but a check failed; `no_answer`; "
         "`harness_error` = infrastructure failure, not the agent's fault."
     )

@@ -8,11 +8,15 @@ ordered so each run gets the most specific explanation that applies.
   loop            hit max_steps while repeating a tool call that kept returning the same result
   step_limit      hit max_steps without such a repetition
   gave_up         answered WITHOUT CALLING ANY TOOL, and failed (e.g. "I don't have access")
+  stopped_after_error  called tools, EVERY call errored, then answered instead of fixing the call
+                  and retrying (e.g. the error named the correct path; the agent asked the user)
   no_answer       stopped with an empty final answer
   wrong_answer    used tools and gave an answer, but a check failed
 
 `gave_up` was added after the first full suite run (2026-10-22): 23 of 25 failures were the
 model declining on step 1 without exploring, which `wrong_answer` hid.
+`stopped_after_error` was added after the first git suite run (2026-10-24) for the same reason:
+all 9 baseline failures got a recoverable error and gave up.
 """
 
 from __future__ import annotations
@@ -25,7 +29,14 @@ from agentgrade.checks import CheckOutcome
 from agentgrade.runner import RunResult
 
 Category = Literal[
-    "pass", "harness_error", "loop", "step_limit", "gave_up", "no_answer", "wrong_answer"
+    "pass",
+    "harness_error",
+    "loop",
+    "step_limit",
+    "gave_up",
+    "stopped_after_error",
+    "no_answer",
+    "wrong_answer",
 ]
 
 LOOP_MIN_REPEATS = 3  # identical result from the same tool this many times in a row
@@ -98,6 +109,13 @@ def categorize(
         return "loop" if signals.longest_repeat >= LOOP_MIN_REPEATS else "step_limit"
     if signals.tool_calls == 0 and (final_answer or "").strip():
         return "gave_up"
+    failed_calls = signals.unknown_tool + signals.invalid_arguments + signals.tool_error
+    if (
+        signals.tool_calls > 0
+        and failed_calls == signals.tool_calls
+        and (final_answer or "").strip()
+    ):
+        return "stopped_after_error"
     if not (final_answer or "").strip():
         return "no_answer"
     return "wrong_answer"

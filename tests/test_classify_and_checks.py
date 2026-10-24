@@ -130,3 +130,22 @@ def test_regression_gave_up_from_first_suite_run():
 def test_wrong_answer_still_means_tools_were_used():
     explored = run([step(1, "read_text_file"), step(2, answer="not stated")], answer="not stated")
     assert classify(explored, outcome(False))[0] == "wrong_answer"
+
+
+def test_regression_stopped_after_error_from_first_git_run():
+    # Git suite run 1 (2026-10-24): the agent called git_log with repo_path=".", got
+    # "Repository path '.' is outside the allowed repository '<path>'" - the fix was in the
+    # error - and answered "please check the path" instead of retrying.
+    error = "ERROR (tool_error): Repository path '.' is outside the allowed repository '/x'"
+    answer = "The repository path provided is not within the allowed repository directory."
+    steps = [step(1, "git_log", error, "tool_error"), step(2, answer=answer)]
+    assert classify(run(steps, answer=answer), outcome(False))[0] == "stopped_after_error"
+
+
+def test_one_successful_call_means_it_is_not_stopped_after_error():
+    steps = [
+        step(1, "git_log", "ERROR", "tool_error"),
+        step(2, "git_log", "Commit history: "),  # succeeded (but empty) - a different failure
+        step(3, answer="no commits"),
+    ]
+    assert classify(run(steps, answer="no commits"), outcome(False))[0] == "wrong_answer"

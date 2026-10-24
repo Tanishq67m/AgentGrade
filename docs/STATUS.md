@@ -4,8 +4,8 @@ _Last updated: 2026-10-21_
 
 ## Current objective
 **M5b - second MCP server (git).** Suite `setup` step, deterministic git fixture, server logs to file,
-`suites/git.yaml` (5 tasks x 2 variants) done and verified on the real `mcp-server-git` with a staged agent
-(ADR 0014, 155 tests). Next: first real run on the Mac.
+`suites/git.yaml` done (ADR 0014). Git suite run 1 completed; taxonomy (`stopped_after_error`) and variants
+revised from its traces (157 tests). Next: git suite run 2 with the new variants.
 
 Previous:
 **M5a - stronger model, still free.** Done: adapter works locally (Ollama /v1 smoke run PASS) and on Groq
@@ -41,6 +41,8 @@ identified the active change (results below). Next: M5 (more servers + a stronge
 
 | 2026-10-23 | **Suite run 3** `shop-filesystem`, 4 tasks x 2 variants x 3 | `openai/gpt-oss-120b` on Groq free tier, temp 0.7 | per variant | baseline **11/12** (CI 65-99%) · glob-rules-only **12/12** (CI 76-100%) | Run `20261023T115016Z-9b0ee9`. The strong model barely needs the description fix (the 4B model went 1/12 -> 9/12). `order_status_b42` 3/3 in both variants (0/27 for the 4B model). The one failure was the model emitting malformed tool-call JSON (Groq 400 `tool_use_failed`), recorded as `harness_error` before the fix below. 129/159 model calls waited on rate limits (562 s total). |
 
+| 2026-10-24 | **Git suite run 1** `git-repo`, 5 tasks x 2 variants x 3 | `qwen3:4b-instruct` (`0edcdef34593`), temp 0.7 | 7 read-only git tools | baseline **6/15** (CI 20-64%) · repo-path-given **12/15** (CI 55-93%) | Run `20261024T170846Z-4dec97`. **All 9 baseline failures = `stopped_after_error`**: called a tool with `repo_path="."`, got an error naming the correct path, answered "please check the path" instead of retrying. `last_commit_author` **0/6 in both variants**: `git_log(start_timestamp="now", end_timestamp="now")` returned an empty history and the agent concluded "no commits / unknown author". |
+
 **Findings from run 1** (inputs for M5's failure taxonomy and recommendations):
 - Model-side: wrong tool mental model (non-recursive globs), **repetition loop without progress**, no strategy switch.
 - Tool-side (server UX): a bare `No matches found` gives no recovery hint; a message about `**/` would likely let the agent recover.
@@ -66,6 +68,15 @@ identified the active change (results below). Next: M5 (more servers + a stronge
   looking for the rates file: 5 `wrong_answer` runs on `shipping_cost_a17`. Candidate category: `incomplete_exploration`.
 - `order_status_b42` is never attempted (0/27). Unverified hypothesis: "current status" reads as a live-system query.
 - Caveat: one 4B local model, one small dataset, 3 repeats per cell. These are findings about this setup.
+
+**Findings from git suite run 1:**
+- **Recoverable errors aren't recovered.** The error message contained the exact fix (the allowed path), and the
+  agent passed every time it did retry, but it usually stopped and asked the user instead. New category: `stopped_after_error`.
+- **An empty result plus an optional filter leads to a confident wrong answer.** "Most recent" was translated into a
+  zero-length time window. The server's empty `Commit history:` gave no hint, the same pattern as the filesystem's
+  bare "No matches found". Two servers, same anti-pattern: empty results without guidance.
+- Next variants: `retry-on-error` (agent-side, vs baseline) and `path-given-clear-log` (server-side git_log
+  description, vs repo-path-given).
 
 **Findings from suite run 3 (strong model):**
 - **Tool-description quality matters most for small models.** gpt-oss-120b solved 11/12 with the original
@@ -122,7 +133,7 @@ See [decisions/README.md](decisions/README.md) (0001-0010).
 | M3 | Agent loop over MCP tools + trace recording | Done |
 | M4 | Suites, variants, repeats, failure classification, reports | Code done - real run pending |
 | M5a | Stronger model via OpenAI-compatible adapter (free tiers) | Done |
-| M5b | Second server: git (`suites/git.yaml`) | Code done - real run pending |
+| M5b | Second server: git (`suites/git.yaml`) | Run 1 done - run 2 (new variants) pending |
 | M5 | Third server; refine taxonomy; actionable recommendations in reports | Not started |
 | M6 | Public case study: before/after results + write-up; README results section | Not started |
 | Later | CI mode (fail a PR on reliability regression), HTML report, paid model adapters, container isolation | - |
