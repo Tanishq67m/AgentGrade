@@ -200,6 +200,13 @@ Each fixed bug has a regression test and an entry in the STATUS bug log.
   (2) **"most recent commit" failed 0/6 even with the path**: the model filtered `git_log` to a zero-length window
   ("now" to "now"), got an empty history and confidently answered "there are no commits". Across both servers the
   same anti-pattern shows up: **empty results with no guidance lead agents to wrong conclusions.**
+- **Git run 2 (60 runs) replicated run 1** (baseline 6 -> 7/15, path given 12 -> 13/15) and tested two fixes:
+  a clearer `git_log` description (server-side) reached **15/15** and made the empty-window mistake disappear;
+  a generic "read errors and retry" system-prompt line (agent-side) scored **8/15 vs 7/15**, fixing one task
+  while breaking another. Twice the model wrote "Let me retry with the correct path" and then ended its turn.
+- **The pattern across both servers:** *concrete information* (the repo path, precise tool semantics) moves
+  pass rates a lot; *generic behavioural advice* in the agent's prompt barely does. For server authors, the tool
+  description is the highest-leverage place to fix agent failures.
 - Limitations: stdio only; one model provider; only `max_steps` as a limit (no token/time/cost limits yet);
   key-based redaction only; trusted servers only. Server tool descriptions go straight into the prompt, which is a
   prompt-injection risk accepted only because the servers are trusted. Startup failures are reported only after a 60 s timeout.

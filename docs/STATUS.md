@@ -5,7 +5,8 @@ _Last updated: 2026-10-21_
 ## Current objective
 **M5b - second MCP server (git).** Suite `setup` step, deterministic git fixture, server logs to file,
 `suites/git.yaml` done (ADR 0014). Git suite run 1 completed; taxonomy (`stopped_after_error`) and variants
-revised from its traces (157 tests). Next: git suite run 2 with the new variants.
+revised from its traces (157 tests). Git suite run 2 done: the server-side git_log description fix reached 15/15;
+the generic agent-side "retry on error" line didn't help. M5b done. Next: public case study + upstream issues (M6).
 
 Previous:
 **M5a - stronger model, still free.** Done: adapter works locally (Ollama /v1 smoke run PASS) and on Groq
@@ -43,6 +44,8 @@ identified the active change (results below). Next: M5 (more servers + a stronge
 
 | 2026-10-24 | **Git suite run 1** `git-repo`, 5 tasks x 2 variants x 3 | `qwen3:4b-instruct` (`0edcdef34593`), temp 0.7 | 7 read-only git tools | baseline **6/15** (CI 20-64%) · repo-path-given **12/15** (CI 55-93%) | Run `20261024T170846Z-4dec97`. **All 9 baseline failures = `stopped_after_error`**: called a tool with `repo_path="."`, got an error naming the correct path, answered "please check the path" instead of retrying. `last_commit_author` **0/6 in both variants**: `git_log(start_timestamp="now", end_timestamp="now")` returned an empty history and the agent concluded "no commits / unknown author". |
 
+| 2026-10-25 | **Git suite run 2**, 5 tasks x 4 variants x 3 | `qwen3:4b-instruct` (`0edcdef34593`), temp 0.7 | 7 read-only git tools | baseline **7/15** · repo-path-given **13/15** · retry-on-error **8/15** · path-given-clear-log **15/15** (CI 80-100%) | Run `20261025T061929Z-496013`. Run 1 **replicated** (6->7/15, 12->13/15). `last_commit_author`: 1/6 across both runs with the path, 3/3 with the clearer git_log description. retry-on-error: no net effect, with side effects (rounding task 0/3 `gave_up`; 2 runs said "Let me retry with the correct path" and then ended the turn without a tool call). |
+
 **Findings from run 1** (inputs for M5's failure taxonomy and recommendations):
 - Model-side: wrong tool mental model (non-recursive globs), **repetition loop without progress**, no strategy switch.
 - Tool-side (server UX): a bare `No matches found` gives no recovery hint; a message about `**/` would likely let the agent recover.
@@ -77,6 +80,17 @@ identified the active change (results below). Next: M5 (more servers + a stronge
   bare "No matches found". Two servers, same anti-pattern: empty results without guidance.
 - Next variants: `retry-on-error` (agent-side, vs baseline) and `path-given-clear-log` (server-side git_log
   description, vs repo-path-given).
+
+**Findings from git suite run 2:**
+- **Server-side description fix: 13/15 -> 15/15.** With git_log's description saying "newest first, timestamp
+  filters optional", the zero-length `now`..`now` window never appeared again (last_commit_author 3/3, was 1/6).
+- **Generic agent-side advice didn't help:** "If a tool errors, read it and retry" scored 8/15 vs baseline 7/15.
+  It fixed one task (uncommitted_file 0/3 -> 3/3), broke another (rounding_fix_author 2/3 -> 0/3, refusing
+  without any tool call), and twice the model *wrote* "Let me retry with the correct path" and then ended its
+  turn without calling a tool.
+- **Concrete context helped, generic advice didn't:** giving the repo path (a fact) took 7/15 to 13/15; telling
+  the agent how to behave did almost nothing. The filesystem suite showed the same thing (agent-context 3/12).
+- Across both servers and both runs, **fixing the tool description beat changing the agent's prompt.**
 
 **Findings from suite run 3 (strong model):**
 - **Tool-description quality matters most for small models.** gpt-oss-120b solved 11/12 with the original
@@ -133,7 +147,7 @@ See [decisions/README.md](decisions/README.md) (0001-0010).
 | M3 | Agent loop over MCP tools + trace recording | Done |
 | M4 | Suites, variants, repeats, failure classification, reports | Code done - real run pending |
 | M5a | Stronger model via OpenAI-compatible adapter (free tiers) | Done |
-| M5b | Second server: git (`suites/git.yaml`) | Run 1 done - run 2 (new variants) pending |
+| M5b | Second server: git (`suites/git.yaml`) | Done |
 | M5 | Third server; refine taxonomy; actionable recommendations in reports | Not started |
 | M6 | Public case study: before/after results + write-up; README results section | Not started |
 | Later | CI mode (fail a PR on reliability regression), HTML report, paid model adapters, container isolation | - |
