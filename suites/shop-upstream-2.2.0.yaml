@@ -1,0 +1,60 @@
+# Measures the OFFICIAL fix: @modelcontextprotocol/server-filesystem 2.2.0 (published 2026-11-04)
+# rewrote search_files' description to say patterns match paths relative to `path` and need
+# '**/' to reach subdirectories - independently, the same idea as our `glob-rules-only` variant
+# (suites/shop.yaml, 9/12 vs 1/12 on 2.0.0).
+#
+#   uv run agentgrade run suites/shop-upstream-2.2.0.yaml
+#
+# Same tasks, model and settings as suites/shop.yaml; only the server version differs.
+# Compare with results/2026-10-22-shop-filesystem-ablation.md.
+
+name: shop-filesystem-upstream-2.2.0
+description: shop tasks on the upstream release that ships a precise search_files description.
+
+model:
+  provider: ollama
+  name: qwen3:4b-instruct
+  temperature: 0.7
+
+server:
+  command: npx
+  args: ["-y", "@modelcontextprotocol/server-filesystem@2.2.0", "{root}"]
+  fixture: ../fixtures/shop
+
+tools:   # read-only allowlist (ADR 0005 / 0009)
+  - list_allowed_directories
+  - list_directory
+  - directory_tree
+  - read_text_file
+  - search_files
+  - get_file_info
+
+max_steps: 10
+repeats: 3
+
+variants:
+  - name: upstream-2.2.0
+    description: The 2.2.0 server exactly as shipped (its own new search_files description).
+
+tasks:
+  - id: shipping_cost_a17
+    prompt: >-
+      What is the shipping cost in USD for order A17? The order data and the shipping rates
+      are in the files you can access.
+    checks:
+      - {type: answer_number, expected: 12.5}
+
+  - id: order_status_b42
+    prompt: What is the current status of order B42?
+    checks:
+      - {type: answer_contains, expected: processing}
+
+  - id: order_count
+    prompt: How many orders are there in total?
+    checks:
+      - {type: answer_regex, pattern: '(?i)\b(2|two)\b'}
+
+  - id: heaviest_order_customer
+    prompt: Which customer placed the heaviest order?
+    checks:
+      - {type: answer_contains, expected: Asha}

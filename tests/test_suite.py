@@ -71,3 +71,10 @@ def test_the_shipped_shop_suite_is_valid():
     suite = load_suite(Path(__file__).parents[1] / "suites" / "shop.yaml")
     assert suite.server.fixture.is_dir()
     assert {v.name for v in suite.variants} >= {"baseline"}
+
+
+@pytest.mark.parametrize(
+    "path", sorted((Path(__file__).parents[1] / "suites").glob("*.yaml")), ids=lambda p: p.name
+)
+def test_every_shipped_suite_is_valid(path):
+    load_suite(path)

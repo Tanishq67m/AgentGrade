@@ -7,8 +7,8 @@ helped. AgentGrade runs an agent on defined tasks against a real **MCP server**,
 checks each answer **in code** (no model grades another model), classifies every failure from a full
 execution trace, and compares variants **before and after a change**.
 
-> **Status:** early development, Milestone 4 of 6. Suites, repeated runs, failure classification and
-> before/after reports work end to end. See [docs/PROJECT.md](docs/PROJECT.md).
+> **Status:** early development. Two official MCP servers evaluated so far (252 runs).
+> **Read the findings: [docs/CASE_STUDY.md](docs/CASE_STUDY.md).** Project overview: [docs/PROJECT.md](docs/PROJECT.md).
 
 ## The problems it targets
 
