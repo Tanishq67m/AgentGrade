@@ -169,6 +169,8 @@ The first real run failed; the trace explained why (see section 6).
    a 1/12 to 9/12 gain. Its text also contained concrete examples (`**/*.json`, `**/*invoice*`). When upstream shipped
    the same rules with generic examples, it scored 3/12: searching was fixed, refusals weren't. **Lesson:** a variant
    name is a claim. Diff the actual texts, and treat an independent real-world fix as a test of your conclusions.
+   The follow-up test confirmed it: rules + generic examples 3/12, rules + concrete examples 9/12 (third replication).
+   **The examples, not the rules, decide whether a small model searches at all.**
 
 Each fixed bug has a regression test and an entry in the STATUS bug log.
 

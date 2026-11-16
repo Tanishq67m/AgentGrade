@@ -1,27 +1,30 @@
 # Case study: what makes agents fail on MCP servers, and which fixes actually work
 
-**264 evaluated agent runs on two official MCP servers** (filesystem, git), two models, every answer checked in
-code, every run traced. Run with [AgentGrade](../README.md), October 2026.
+**312 evaluated agent runs on two official MCP servers** (filesystem, git), two models, every answer checked in
+code, every run traced. Run with [AgentGrade](../README.md), October-November 2026.
 
-> **Status: draft.** One experiment is pending, marked ⏳: whether concrete examples in a tool description are
-> what stops small models refusing (see Finding 1).
+> **Version 1, 2026-11-16.** All experiments complete. Raw reports are in [`results/`](../results/).
 
 ## TL;DR
 
-1. **The tool description is the highest-leverage fix.** Rewriting one tool's description raised a small model's
-   pass rate from **1/12 to 9/12** on the filesystem server (the baseline and the gain both reproduced in a second,
-   independent run), and from **13/15 to 15/15** on the git server (measured once so far).
-2. **Generic advice in the agent's prompt barely helps.** "Explore with your tools first": 1/12 → 3/12.
+1. **Concrete examples in a tool description decide whether a small model even tries.** Swapping two generic
+   examples (`**/*.ext`, `**/name`) for realistic ones (`**/*.json`, `**/*invoice*`) in one tool's description took a
+   4B model from **3/12 to 9/12**. With the generic examples it answered "I don't have access to any database"
+   without calling a tool. Precise matching rules alone fixed *searching*, but not that refusal.
+2. **The tool description is the highest-leverage fix.** Rewriting one tool's description raised a small model's
+   pass rate from **1/12 to 9/12** on the filesystem server (the 9/12 reproduced in three separate runs), and from
+   **13/15 to 15/15** on the git server (measured once so far).
+3. **Generic advice in the agent's prompt barely helps.** "Explore with your tools first": 1/12 → 3/12.
    "If a tool errors, read it and retry": 7/15 → 8/15, fixing one task while breaking another.
    **Concrete facts help a lot**: telling the agent where the repository is took 7/15 → 13/15.
-3. **Empty results with no guidance produce confident wrong answers.** On both servers an agent received an empty
+4. **Empty results with no guidance produce confident wrong answers.** On both servers an agent received an empty
    result, either `No matches found` or an empty `Commit history:`, after misusing a parameter, and concluded the
    data didn't exist.
-4. **The most common failure wasn't bad tool use but no tool use.** The small model often answered
+5. **The most common failure wasn't bad tool use but no tool use.** The small model often answered
    "I don't have access to any database" without calling a tool, or gave up after one recoverable error.
    A strong model (gpt-oss-120b) did neither: **11/12** and **14/15** on the original servers. **Vague
    descriptions and unhelpful errors mostly hurt small, cheap models.**
-5. **Strong models fail differently:** they assume real-CLI semantics the tool doesn't support (git range syntax),
+6. **Strong models fail differently:** they assume real-CLI semantics the tool doesn't support (git range syntax),
    and mis-copy long opaque paths. They're better, not immune.
 
 These are findings about the specific setups below, not universal laws. See [Limitations](#limitations).
@@ -77,8 +80,26 @@ examples (`'**/*.json'`, `'**/*invoice*'`), while 2.2.0 uses generic ones (`'*.e
 the rules from the exploration advice, but never the rules from the examples. (2.2.0 also changed `directory_tree`,
 `get_file_info` and `read_text_file`, so it isn't a single-variable comparison.)
 
-⏳ *Hypothesis under test: concrete examples, not the rules, are what stop the refusals. Two one-change variants on
-the pinned 2.0.0 server: 2.2.0's exact `search_files` text alone, and our text with only the examples made generic.*
+**So we tested the examples directly** (same pinned 2.0.0 server, one change per variant, all four run together):
+
+| Variant (4 tasks x 3 repeats) | `shipping_cost` | `order_count` | `heaviest_order_customer` | Total |
+|---|---|---|---|---|
+| baseline | 2/3 | 0/3 | 0/3 | 2/12 |
+| 2.2.0's `search_files` text only | 2/3 | 0/3 | 0/3 | 2/12 |
+| our rules + **generic** examples (`'**/*.ext'`, `'**/name'`) | 3/3 | **0/3** | **0/3** | 3/12 |
+| our rules + **concrete** examples (`'**/*.json'`, `'**/*invoice*'`) | 3/3 | **3/3** | **3/3** | **9/12** (3rd time) |
+
+(`order_status_b42` was 0/3 everywhere; see Finding 3.) Changing **only the two example patterns** moved
+`order_count` and `heaviest_order_customer` from 0/6 to 6/6. With generic examples, every one of those runs was a
+step-1 refusal: *"I don't have access to any database or system that would contain order information."* With the
+concrete examples the model searched for business data (`**/*order*` x4, `**/*.order` x3, and `**/*.invoice`, a
+literal echo of the example) and found it.
+
+**Our reading:** precise rules teach the model *how* to search; realistic examples tell it *that there is
+something worth searching for*. For a small model, a filesystem tool described only in abstract terms
+(`*.ext`) reads as "a file-system utility", not "where the user's orders live", so it declines before trying. This
+is an interpretation of one model on one dataset, not a proven mechanism. Which example word does the work
+(`json` or `invoice`) isn't separated yet.
 
 ## Finding 2: an optional filter plus an empty result produced "there are no commits" (git)
 
@@ -141,15 +162,17 @@ say what the tool accepts, and make errors say what to do instead.
 
 1. **State exact semantics in the tool description**: matching rules, defaults, ordering, which parameters are
    optional. Agents take descriptions literally, and small models can't recover from ambiguity.
-2. **Never return a bare empty result.** Say what was searched and how to widen it:
+2. **Use realistic examples, not placeholders.** `'**/*.json'` or `'**/*invoice*'` told a small model there was
+   user data to look for; `'*.ext'` didn't (9/12 vs 3/12). Expect models to copy examples literally.
+3. **Never return a bare empty result.** Say what was searched and how to widen it:
    *"No matches. Patterns are relative to `path`; use `**/` for subfolders."*
    *"No commits in this time range; omit the timestamps to see the latest commits."*
-3. **Make required context discoverable**, or make the error tell the agent exactly what to do next. A
+4. **Make required context discoverable**, or make the error tell the agent exactly what to do next. A
    path-discovery tool or a default `repo_path` removes a whole failure class. Long opaque IDs get mis-copied
    even by strong models: accept a default wherever you can.
-4. **Say what syntax a parameter does *not* accept** when it looks like a familiar CLI flag or argument
+5. **Say what syntax a parameter does *not* accept** when it looks like a familiar CLI flag or argument
    ("`target` takes one branch or commit; ranges like `a..b` are not supported").
-5. **Test with the small models your users will actually run.** A strong model hides most of these problems.
+6. **Test with the small models your users will actually run.** A strong model hides most of these problems.
 
 ## Limitations
 
@@ -172,7 +195,9 @@ say what the tool accepts, and make errors say what to do instead.
 ```bash
 git clone https://github.com/Tanishq67m/AgentGrade.git && cd AgentGrade && uv sync
 ollama pull qwen3:4b-instruct
-uv run agentgrade run suites/shop.yaml          # filesystem, 6 variants
+uv run agentgrade run suites/shop.yaml          # filesystem, all variants
+uv run agentgrade run suites/shop.yaml --variants baseline,glob-rules-only,upstream-2.2.0-description,glob-rules-generic-examples
+uv run agentgrade run suites/shop-upstream-2.2.0.yaml
 uv run agentgrade run suites/git.yaml           # git, 4 variants
 uv run agentgrade run suites/shop.yaml --model model_configs/groq-gpt-oss-120b.yaml --variants baseline,glob-rules-only
 uv run agentgrade run suites/git.yaml --model model_configs/groq-gpt-oss-120b.yaml --variants baseline,repo-path-given

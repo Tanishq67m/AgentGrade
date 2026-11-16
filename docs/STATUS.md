@@ -5,8 +5,8 @@ _Last updated: 2026-10-21_
 ## Current objective
 **M6 - public case study.** Draft `docs/CASE_STUDY.md` written from the 222 recorded runs; upstream issue draft for git
 (`docs/upstream/`). gpt-oss-120b on git done (14/15 both variants). Upstream filesystem 2.2.0 measured: 3/12. That
-corrected our ablation claim. Pending: the examples-vs-rules experiment (`upstream-2.2.0-description`,
-`glob-rules-generic-examples` in `suites/shop.yaml`). Upstream
+corrected our ablation claim. Examples-vs-rules experiment done: concrete examples, not the rules, stop the refusals
+(9/12 vs 3/12). **Case study v1 complete (312 runs).** Next: post the two upstream issues, then publish. Upstream
 filesystem 2.2.0 (2026-11-04) independently rewrote `search_files`' description along the lines of our
 `glob-rules-only` variant, so no filesystem issue is needed; that release gets measured instead.
 
@@ -56,6 +56,8 @@ identified the active change (results below). Next: M5 (more servers + a stronge
 | 2026-11-10 | **Git suite, strong model**, 5 tasks x 2 variants x 3 | `openai/gpt-oss-120b` on Groq free tier, temp 0.7 | 7 read-only git tools | baseline **14/15** · repo-path-given **14/15** | Run `20261110T162354Z-0bdeb7`. All 15 baseline runs hit the wrong-path error; 14 recovered (the 4B model mostly gave up). 0 `git_log` timestamp filters used. Both failures: `step_limit` on `unmerged_branch`, repeatedly passing range syntax (`main..feature/discounts`) to `git_diff`, which doesn't support it. Twice mis-copied the long sandbox path (dropped one digit). 511 s of rate-limit waits. |
 
 | 2026-11-16 | **Upstream filesystem 2.2.0**, 4 tasks x 1 variant x 3 | `qwen3:4b-instruct` (`0edcdef34593`), temp 0.7 | 6 read-only tools | **3/12** (CI 9-53%) | Run `20261116T081507Z-b81578`. 2.2.0 ships precise matching rules with generic examples. shipping_cost 3/3 (was 1/3), other 3 tasks 0/9, all `gave_up`. So the rules fix searching, not refusals; our "glob-rules-only" variant (9/12) also had concrete examples (`**/*.json`, `**/*invoice*`). 2.2.0 also changed directory_tree, get_file_info and read_text_file, so it's not a single-variable comparison. |
+
+| 2026-11-16 | **Examples vs rules**, 4 tasks x 4 variants x 3 | `qwen3:4b-instruct` (`0edcdef34593`), temp 0.7 | 6 read-only tools, server 2.0.0 | baseline **2/12** · glob-rules-only **9/12** (3rd time) · upstream-2.2.0-description **2/12** · glob-rules-generic-examples **3/12** | Run `20261116T095521Z-4ff742`. Swapping only the two examples (`**/*.json`, `**/*invoice*` to `**/*.ext`, `**/name`) took order_count + heaviest from 6/6 to 0/6, all `gave_up`. With concrete examples the model searched `**/*order*`, `**/*.order` and `**/*.invoice` (a literal echo). Rules fix *how* to search; concrete examples make it search at all. |
 
 **Findings from run 1** (inputs for M5's failure taxonomy and recommendations):
 - Model-side: wrong tool mental model (non-recursive globs), **repetition loop without progress**, no strategy switch.
@@ -160,5 +162,5 @@ See [decisions/README.md](decisions/README.md) (0001-0010).
 | M5a | Stronger model via OpenAI-compatible adapter (free tiers) | Done |
 | M5b | Second server: git (`suites/git.yaml`) | Done |
 | M5 | Third server; refine taxonomy; actionable recommendations in reports | Not started |
-| M6 | Public case study: before/after results + write-up; README results section | Draft written - 1 run pending (filesystem 2.2.0) |
+| M6 | Public case study: before/after results + write-up; README results section | Case study v1 done - upstream issues to post |
 | Later | CI mode (fail a PR on reliability regression), HTML report, paid model adapters, container isolation | - |
