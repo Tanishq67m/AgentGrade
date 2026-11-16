@@ -150,7 +150,8 @@ All 3 failures of the 120B model across 54 runs:
 - **Assuming command-line semantics.** Asked for unmerged work, it called `git_diff` with
   `target: "main..feature/discounts"`, `"main...feature/discounts"`, `"feature/discounts..main"` and more. `git diff`
   understands these; the tool's `target` doesn't, and replies only "Ref '…' did not resolve to an object". It tried
-  4-6 range variants before hitting the 10-step limit (2 runs, both on `unmerged_branch`).
+  4-6 range variants before hitting the 10-step limit (2 runs, both on `unmerged_branch`). *Upstream has since added
+  range support to `git_diff` (mcp-server-git 2026.11.11, #5194).*
 - **Mis-copying long opaque IDs.** Twice it re-typed the sandbox path as `…mdc1r4…` instead of `…mdc21r4…`, dropping
   the **same digit** both times. The server's error caught it, and it recovered in one run.
 - One run (filesystem) produced malformed tool-call JSON that the provider rejected.
