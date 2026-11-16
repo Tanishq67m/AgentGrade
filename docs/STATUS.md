@@ -6,7 +6,10 @@ _Last updated: 2026-10-21_
 **M6 - public case study.** Draft `docs/CASE_STUDY.md` written from the 222 recorded runs; upstream issue draft for git
 (`docs/upstream/`). gpt-oss-120b on git done (14/15 both variants). Upstream filesystem 2.2.0 measured: 3/12. That
 corrected our ablation claim. Examples-vs-rules experiment done: concrete examples, not the rules, stop the refusals
-(9/12 vs 3/12). **Case study v1 complete (312 runs).** Next: post the two upstream issues, then publish. Upstream
+(9/12 vs 3/12). **Case study v1 complete (312 runs).** Upstream issues filed 2026-11-16:
+[#5552](https://github.com/modelcontextprotocol/servers/issues/5552) (git `git_log`),
+[#5553](https://github.com/modelcontextprotocol/servers/issues/5553) (filesystem `search_files` examples). Next: respond to
+triage; choose the next build milestone (CI mode or recommendations in reports). Upstream
 filesystem 2.2.0 (2026-11-04) independently rewrote `search_files`' description along the lines of our
 `glob-rules-only` variant, so no filesystem issue is needed; that release gets measured instead.
 
@@ -162,5 +165,5 @@ See [decisions/README.md](decisions/README.md) (0001-0010).
 | M5a | Stronger model via OpenAI-compatible adapter (free tiers) | Done |
 | M5b | Second server: git (`suites/git.yaml`) | Done |
 | M5 | Third server; refine taxonomy; actionable recommendations in reports | Not started |
-| M6 | Public case study: before/after results + write-up; README results section | Case study v1 done - upstream issues to post |
+| M6 | Public case study: before/after results + write-up; README results section | Done (case study v1; issues #5552, #5553) |
 | Later | CI mode (fail a PR on reliability regression), HTML report, paid model adapters, container isolation | - |

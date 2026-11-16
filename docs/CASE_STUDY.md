@@ -4,6 +4,8 @@
 code, every run traced. Run with [AgentGrade](../README.md), October-November 2026.
 
 > **Version 1, 2026-11-16.** All experiments complete. Raw reports are in [`results/`](../results/).
+> Reported upstream with the data: [modelcontextprotocol/servers#5552](https://github.com/modelcontextprotocol/servers/issues/5552)
+> (git `git_log`) and [#5553](https://github.com/modelcontextprotocol/servers/issues/5553) (filesystem `search_files` examples).
 
 ## TL;DR
 
@@ -160,6 +162,9 @@ Better models shift failures from "doesn't try" to "tries the wrong thing confid
 say what the tool accepts, and make errors say what to do instead.
 
 ## What this means for MCP server authors
+
+*(Findings 1 and 2 were filed as [#5553](https://github.com/modelcontextprotocol/servers/issues/5553) and
+[#5552](https://github.com/modelcontextprotocol/servers/issues/5552).)*
 
 1. **State exact semantics in the tool description**: matching rules, defaults, ordering, which parameters are
    optional. Agents take descriptions literally, and small models can't recover from ambiguity.
