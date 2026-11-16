@@ -165,6 +165,11 @@ The first real run failed; the trace explained why (see section 6).
 12. **Queueing reported as speed.** On the free tier, 129 of 159 calls waited on rate limits (562 s). Per-call latency
    already excluded that, but run times in the report didn't (33 s "median" vs 8.7 s real).
 
+13. **An ablation label that claimed too much.** We called a variant "glob rules only" and concluded the rules caused
+   a 1/12 to 9/12 gain. Its text also contained concrete examples (`**/*.json`, `**/*invoice*`). When upstream shipped
+   the same rules with generic examples, it scored 3/12: searching was fixed, refusals weren't. **Lesson:** a variant
+   name is a claim. Diff the actual texts, and treat an independent real-world fix as a test of your conclusions.
+
 Each fixed bug has a regression test and an entry in the STATUS bug log.
 
 ## 6. Current state and known limitations

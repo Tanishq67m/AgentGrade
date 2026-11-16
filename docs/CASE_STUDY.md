@@ -1,10 +1,10 @@
 # Case study: what makes agents fail on MCP servers, and which fixes actually work
 
-**252 evaluated agent runs on two official MCP servers** (filesystem, git), two models, every answer checked in
+**264 evaluated agent runs on two official MCP servers** (filesystem, git), two models, every answer checked in
 code, every run traced. Run with [AgentGrade](../README.md), October 2026.
 
-> **Status: draft.** One run is pending, marked ⏳: the upstream filesystem 2.2.0 release, which shipped a fix
-> similar to ours.
+> **Status: draft.** One experiment is pending, marked ⏳: whether concrete examples in a tool description are
+> what stops small models refusing (see Finding 1).
 
 ## TL;DR
 
@@ -54,17 +54,31 @@ subdirectories when they start with `**/`. The agent searched `order*.json` for 
 |---|---|---|
 | baseline: server as shipped | 1/12 | 1/12 (CI 1-35%) |
 | description: precise glob rules **+** "explore the layout first" | 9/12 | 8/12 |
-| precise glob rules only | - | **9/12** (CI 47-91%) |
+| precise glob rules + concrete examples ("rules-only" variant) | - | **9/12** (CI 47-91%) |
 | "explore the layout first" only | - | 1/12 |
 | `search_files` removed | 1/12 | 1/12 |
 
-The first "improved" description changed two things at once, so we ran the ablation. **All of the gain came from
-stating the matching rules precisely.** The exploration advice added nothing. Removing the tool didn't help either,
-because the main failure happened before any tool was chosen (Finding 3).
+The first "improved" description changed two things at once, so we ran the ablation: the gain was in the
+rewritten matching rules, and the "explore the layout first" advice added nothing. Removing the tool didn't help
+either, because the main failure happened before any tool was chosen (Finding 3).
 
-**Upstream independently shipped the same idea.** Filesystem server **2.2.0** (2026-11-04) describes the pattern as
-matching paths *relative to `path`*, with `**/` needed "to match at any depth". ⏳ *Measured on 2.2.0 with the same
-tasks: pending (`suites/shop-upstream-2.2.0.yaml`).*
+**Upstream then shipped its own fix, and measuring it corrected us.** Filesystem server **2.2.0** (2026-11-04)
+rewrote the description with the same precise rules (paths relative to `path`, `**/` to reach any depth):
+
+| Same 4 tasks x 3 repeats | `shipping_cost` (prompt mentions files) | other 3 tasks | Total |
+|---|---|---|---|
+| 2.0.0 as shipped | 1/3 | 0/9 (9x `gave_up`) | 1/12 |
+| **2.2.0 as shipped** | **3/3** | **0/9 (9x `gave_up`)** | **3/12** |
+| 2.0.0 + our rewritten description | 3/3 | 6/9 | 9/12 |
+
+Upstream's precise rules fixed the **searching**: whenever the model tried, it succeeded. They didn't fix the
+**refusals**. So our ablation label was too strong. Our "rules-only" text also contained concrete, data-like
+examples (`'**/*.json'`, `'**/*invoice*'`), while 2.2.0 uses generic ones (`'*.ext'`, `'**/name'`); we had separated
+the rules from the exploration advice, but never the rules from the examples. (2.2.0 also changed `directory_tree`,
+`get_file_info` and `read_text_file`, so it isn't a single-variable comparison.)
+
+⏳ *Hypothesis under test: concrete examples, not the rules, are what stop the refusals. Two one-change variants on
+the pinned 2.0.0 server: 2.2.0's exact `search_files` text alone, and our text with only the examples made generic.*
 
 ## Finding 2: an optional filter plus an empty result produced "there are no commits" (git)
 
@@ -97,7 +111,7 @@ without calling anything. On the filesystem server, **44 of 49 failures** in the
 
 ## Finding 4: a bigger model hides most of it
 
-| Model | Filesystem, original description | Filesystem, precise glob rules | Git, not told the path | Git, path given |
+| Model | Filesystem, original description | Filesystem, our rewritten description | Git, not told the path | Git, path given |
 |---|---|---|---|---|
 | qwen3:4b-instruct (local) | 1/12 | 9/12 | 6/15, 7/15 | 12/15, 13/15 |
 | gpt-oss-120b (hosted) | **11/12** | 12/12 | **14/15** | 14/15 |
@@ -148,9 +162,10 @@ say what the tool accepts, and make errors say what to do instead.
   knows the tasks can still unintentionally bias wording.
 - **Hosted models drift:** Groq reported 41 different `system_fingerprint`s in 159 calls of the same model id.
   Hosted results hold "as of that date".
-- **Our own mistakes along the way** (fixed, each with a regression test): a grader that passed a wrong answer, a
-  failure category that hid 92% of failures, one experiment that changed two things at once, and one model error
-  first blamed on our infrastructure. Listed in [PROJECT.md](PROJECT.md#5-mistakes-and-what-they-taught).
+- **Our own mistakes along the way** (fixed, each with a regression test where code was involved): a grader that
+  passed a wrong answer, a failure category that hid 92% of failures, one experiment that changed two things at once,
+  one model error first blamed on our infrastructure, and an ablation label ("rules only") that turned out to
+  bundle rules with examples. Measuring upstream's real fix exposed that last one. Listed in [PROJECT.md](PROJECT.md#5-mistakes-and-what-they-taught).
 
 ## Reproduce
 

@@ -76,6 +76,35 @@ variants:
         If you don't know the folder layout yet, call directory_tree or list_directory first.
         Returns full paths of all matches. Only searches within allowed directories.
 
+  # Added 2026-11-16. Upstream server-filesystem 2.2.0 shipped precise matching rules with GENERIC
+  # examples ('*.ext', '**/name') and scored 3/12: it fixed searching (shipping_cost 3/3) but not the
+  # refusals (9/9 gave_up on the other tasks). glob-rules-only scored 9/12 but its text ALSO contains
+  # concrete, data-like examples ('**/*.json', '**/*invoice*'). Hypothesis: the examples, not the rules,
+  # stop the refusals. These two variants test that on the same pinned 2.0.0 server.
+  - name: upstream-2.2.0-description
+    description: >
+      2.0.0 server with ONLY search_files' description replaced by 2.2.0's exact text (2.2.0 also changed
+      directory_tree, get_file_info and read_text_file; this removes those confounds). Compare with baseline.
+    description_overrides:
+      search_files: >-
+        Find files and directories by NAME, not by content: this tool never reads or searches inside files.
+        It walks the tree under 'path' and matches a glob pattern against each entry's path relative to
+        'path' (case-sensitive). Use '*.ext' to match entries directly under 'path', and '**/*.ext' or
+        '**/name' to match at any depth. Returns full paths to all matching items. Great for finding files
+        when you don't know their exact location. Only searches within allowed directories.
+
+  - name: glob-rules-generic-examples
+    description: >
+      glob-rules-only with ONE change: its concrete examples ('**/*.json', '**/*invoice*') replaced by
+      upstream's generic ones ('**/*.ext', '**/name'). Compare with glob-rules-only.
+    description_overrides:
+      search_files: >-
+        Find files and directories by glob pattern under `path`. IMPORTANT: patterns are matched
+        against paths RELATIVE to `path`, and a pattern WITHOUT '**/' only matches entries directly
+        inside `path`, not in subdirectories. To search all subdirectories, start the pattern with
+        '**/', e.g. '**/*.ext' or '**/name'. Matching is on names, not file contents.
+        Returns full paths of all matches. Only searches within allowed directories.
+
   - name: no-search
     description: search_files removed; the agent must explore with listing tools.
     tools:
