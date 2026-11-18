@@ -1,0 +1,9 @@
+# Judge for `agentgrade static-score` (Glama TDQS, ADR 0016). Temperature 0: a grader, not an agent.
+# Each scoring sends ~3K prompt tokens; Groq's free tier allows ~8K tokens/min for this model,
+# so requests are spaced (429s are still retried automatically).
+provider: openai_compatible
+name: openai/gpt-oss-120b
+base_url: https://api.groq.com/openai/v1
+api_key_env: GROQ_API_KEY
+temperature: 0
+requests_per_minute: 2

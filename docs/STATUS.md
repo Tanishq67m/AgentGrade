@@ -1,8 +1,17 @@
 # Project Status
 
-_Last updated: 2026-10-21_
+_Last updated: 2026-11-17_
 
 ## Current objective
+**M7a - static vs measured** (ADR 0016). Positioning reviewed 2026-11-17 (ADR 0015,
+[POSITIONING.md](POSITIONING.md)): harness features (repeats, traces, CI gates) are commodity; the gap
+is proving *which line* of a tool description breaks agents and *which rewrite* fixes it. First test
+of that claim: re-implement Glama's published TDQS, score the 8 descriptions we already measured, and
+compare scores with measured pass rates. Predictions are written in ADR 0016 before running. New command:
+`agentgrade static-score`. Next: M7b `agentgrade improve`; in parallel, talk to 5 MCP server authors.
+CI mode moved to "later" (Braintrust etc. already ship it).
+
+Previous:
 **M6 - public case study.** Draft `docs/CASE_STUDY.md` written from the 222 recorded runs; upstream issue draft for git
 (`docs/upstream/`). gpt-oss-120b on git done (14/15 both variants). Upstream filesystem 2.2.0 measured: 3/12. That
 corrected our ablation claim. Examples-vs-rules experiment done: concrete examples, not the rules, stop the refusals
@@ -148,9 +157,11 @@ identified the active change (results below). Next: M5 (more servers + a stronge
 | 2026-10-22 | "Ollama is down" would be recorded as an ordinary failed run and the suite would keep going; error text read "unhandled errors in a TaskGroup" | Errors inside the MCP client context arrive wrapped in an `ExceptionGroup` (anyio), so `except FatalError` never matched | `root_cause()` unwraps before deciding fatal vs per-run | `test_evaluate.py::test_regression_fatal_error_inside_mcp_context_stops_the_suite` |
 
 ## Approved decisions
-See [decisions/README.md](decisions/README.md) (0001-0010).
+See [decisions/README.md](decisions/README.md) (0001-0016).
 
 ## Unresolved questions
+- Will MCP server authors run this before a release? (Talk to 5 of them; see POSITIONING.md.)
+- How to remove the task-writing barrier: generated tasks vs ready-made suites for popular servers?
 - Which 2nd and 3rd MCP servers for M5? (Python-based ones avoid the Node dependency.)
 - Repeats for the public result: 3 (fast) vs 5+ (narrower intervals, ~2x time)?
 
@@ -161,9 +172,11 @@ See [decisions/README.md](decisions/README.md) (0001-0010).
 | M1 | Agent loop with in-process Python tools + fake model | Done |
 | M2 | MCP client over stdio (filesystem server, fixture data) | Done |
 | M3 | Agent loop over MCP tools + trace recording | Done |
-| M4 | Suites, variants, repeats, failure classification, reports | Code done - real run pending |
+| M4 | Suites, variants, repeats, failure classification, reports | Done |
 | M5a | Stronger model via OpenAI-compatible adapter (free tiers) | Done |
 | M5b | Second server: git (`suites/git.yaml`) | Done |
 | M5 | Third server; refine taxonomy; actionable recommendations in reports | Not started |
 | M6 | Public case study: before/after results + write-up; README results section | Done (case study v1; issues #5552, #5553) |
-| Later | CI mode (fail a PR on reliability regression), HTML report, paid model adapters, container isolation | - |
+| M7a | Static vs measured: TDQS scores vs measured pass rates (ADR 0016) | In progress |
+| M7b | `agentgrade improve`: generate description rewrites, run them as variants, recommend the measured winner | Next |
+| Later | Generated tasks / ready-made suites, CI mode, public index, HTML report, paid model adapters, container isolation | - |

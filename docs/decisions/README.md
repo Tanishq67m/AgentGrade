@@ -21,5 +21,7 @@ An accepted record is never edited to change the decision - write a new record t
 | [0012](0012-taxonomy-and-variants-from-first-suite-run.md) | `gave_up` category, re-derivable categories (`agentgrade report`), ablation variants, agent-side `system_prompt_suffix` | Accepted |
 | [0013](0013-openai-compatible-models.md) | One OpenAI-compatible adapter (Groq/Cerebras/OpenRouter/OpenAI), model config files, 429 handling, keys via env | Accepted |
 | [0014](0014-second-server-git.md) | Second server: mcp-server-git, suite `setup` step, deterministic git fixture, server logs to file, `{root}` in prompts | Accepted |
+| [0015](0015-positioning.md) | Positioning: measured "fix and prove" for MCP server authors; CI mode deprioritized | Accepted |
+| [0016](0016-static-vs-measured.md) | Static vs measured: re-implement Glama's TDQS (pinned), score already-measured descriptions, compare | Accepted |
 
 Template: [TEMPLATE.md](TEMPLATE.md)

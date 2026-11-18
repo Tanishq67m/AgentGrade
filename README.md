@@ -2,6 +2,9 @@
 
 **Reliability testing for AI agents and MCP servers.**
 
+*Static graders guess. AgentGrade measures which line of your tool description breaks agents, and
+proves which rewrite fixes it.* ([why this matters](docs/POSITIONING.md))
+
 An agent that works in a demo often fails in real use, and nobody can say why or whether the fix
 helped. AgentGrade runs an agent on defined tasks against a real **MCP server**, repeats every task,
 checks each answer **in code** (no model grades another model), classifies every failure from a full
@@ -20,8 +23,9 @@ execution trace, and compares variants **before and after a change**.
 | "The model says it's correct." | Deterministic checks only. |
 | "Did our fix help?" | Variants: same tasks, one change (e.g. a rewritten tool description), compared side by side. |
 
-Who it's for: teams building agents on tools and APIs, teams that need evidence before putting an agent into a
-real workflow, and MCP server authors who want to see where models struggle with their tools.
+Who it's for: first, **MCP server authors**. They don't control which agent or model calls their server, so
+they need to see where models (small ones included) struggle with their tools. Also teams that need evidence
+before putting an agent into a real workflow, or before switching to a smaller, cheaper model.
 
 ## Quick start
 
@@ -143,11 +147,11 @@ docs/              PROJECT.md, STATUS.md, decisions/
 
 | Milestone | |
 |---|---|
-| M0-M3 Foundation, agent loop, MCP client, traces | done |
-| M4 Suites, variants, repeats, failure classification, reports | done (code), showcase run next |
-| M5 More MCP servers, actionable recommendations in reports | next |
-| M6 Public before/after case study | |
-| Later | CI mode (fail a PR when reliability drops), HTML report, paid models |
+| M0-M5 Foundation, agent loop, MCP client, traces, suites/variants/reports, second server, hosted models | done |
+| M6 Public case study ([CASE_STUDY.md](docs/CASE_STUDY.md)), upstream issues #5552, #5553 | done |
+| M7a Static vs measured: do published description scores (Glama TDQS) predict agent success? | in progress |
+| M7b `agentgrade improve`: generate description rewrites, A/B them, recommend only what measurably helps | next |
+| Later | Generated tasks / ready-made suites for popular servers, CI mode, public index, paid models |
 
 ## Development
 

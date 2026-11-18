@@ -218,12 +218,26 @@ Each fixed bug has a regression test and an entry in the STATUS bug log.
   key-based redaction only; trusted servers only. Server tool descriptions go straight into the prompt, which is a
   prompt-injection risk accepted only because the servers are trusted. Startup failures are reported only after a 60 s timeout.
 
-## 7. Next
+## 7. Positioning and next
 
-- **M4 showcase run** on the Mac, then publish the before/after report honestly, whatever it shows.
-- **M5 - More servers + recommendations.** Suites for 2-3 more MCP servers (Python-based ones avoid the Node dependency),
-  refine the failure taxonomy, and have reports suggest concrete fixes (e.g. "search returned identical
-  empty results 9x: say in the description that patterns are non-recursive").
-- **M6 - Public case study:** before/after results across servers, a write-up, and a results section in the README.
-- **Later, driven by demand:** CI mode (fail a pull request when reliability drops), HTML report, paid model
-  adapters, FastAPI + PostgreSQL for run history, container isolation before running any untrusted server.
+**Why would anyone use AgentGrade instead of their own tests?** (full answer: [POSITIONING.md](POSITIONING.md), ADR 0015)
+Agent eval platforms (Braintrust, MCPJam, mcp-eval, DeepEval) already run agents with repeats, traces
+and CI gates. Static graders (Arcade ToolBench, Glama TDQS) already grade tool definitions at registry
+scale, without running an agent. What nobody does is connect a specific line of a tool description to
+measured agent behavior and prove a fix. Our own data is the example: upstream 2.2.0's precise matching
+rules still scored 3/12, and two realistic example strings scored 9/12. Positioning: *static graders
+guess; AgentGrade proves which line breaks agents and which rewrite fixes it.* Primary audience: MCP
+server authors, who don't control the agent or model calling their server.
+
+Plan:
+- **M7a - static vs measured** (ADR 0016): re-implement Glama's published TDQS at a pinned commit,
+  score the 8 descriptions we already measured, and compare. Predictions are written down first. If TDQS
+  separates good from bad descriptions, the positioning weakens and we say so.
+- **M7b - `agentgrade improve`:** generate 3-4 description rewrites for a failing tool, run each as a
+  variant, and recommend only a measured winner.
+- **In parallel:** ask 5 MCP server authors whether they would run this before every release.
+- **Later:** generated tasks or ready-made suites (the adoption barrier), CI mode, a public index, paid
+  models, container isolation before running any untrusted server.
+
+Mistake avoided here: building CI mode next would have copied a feature others already ship. Checking
+the landscape before picking the milestone changed the plan.

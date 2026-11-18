@@ -64,15 +64,27 @@ class McpToolInfo:
     description: str
     input_schema: dict[str, Any]
     read_only_hint: bool | None  # None = server didn't say
+    # The rest of what tools/list says - used by static scoring (TDQS), not by the agent loop.
+    title: str | None = None
+    annotations: dict[str, Any] | None = None  # MCP wire names, e.g. {"readOnlyHint": true}
+    output_schema: dict[str, Any] | None = None
 
     @classmethod
     def from_mcp(cls, tool: McpTool) -> McpToolInfo:
         hint = tool.annotations.read_only_hint if tool.annotations else None
+        annotations = (
+            tool.annotations.model_dump(by_alias=True, exclude_none=True)
+            if tool.annotations
+            else None
+        )
         return cls(
             name=tool.name,
             description=tool.description or "",
             input_schema=tool.input_schema,
             read_only_hint=hint,
+            title=tool.title,
+            annotations=annotations or None,
+            output_schema=tool.output_schema,
         )
 
 

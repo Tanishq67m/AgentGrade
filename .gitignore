@@ -26,6 +26,9 @@ runs/
 # Node (never commit; servers run via npx)
 node_modules/
 
+# Files handed over outside the project (e.g. post graphics)
+Claude outputs/
+
 # OS / editor
 .DS_Store
 .idea/

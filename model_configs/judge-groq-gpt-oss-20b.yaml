@@ -1,0 +1,7 @@
+# Second TDQS judge (ADR 0016): a smaller model, to see whether conclusions depend on the judge.
+provider: openai_compatible
+name: openai/gpt-oss-20b
+base_url: https://api.groq.com/openai/v1
+api_key_env: GROQ_API_KEY
+temperature: 0
+requests_per_minute: 2
