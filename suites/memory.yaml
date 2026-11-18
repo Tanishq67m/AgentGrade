@@ -1,0 +1,61 @@
+# AgentGrade suite: can an agent answer questions from a knowledge graph via the official
+# memory MCP server (@modelcontextprotocol/server-memory)?
+#
+#   uv run agentgrade run suites/memory.yaml
+#
+# The graph (fixtures/team_memory/memory.jsonl) is copied fresh into {root} for every run.
+# The server has no CLI flag for the file, so `env` sets MEMORY_FILE_PATH before starting it.
+# Ground truth: fixtures/team_memory/README.md
+
+name: team-memory
+description: Read-only questions over a small team knowledge graph via @modelcontextprotocol/server-memory.
+
+model:
+  provider: ollama
+  name: qwen3:4b-instruct
+  temperature: 0.7
+
+server:
+  command: env
+  args: ["MEMORY_FILE_PATH={root}/memory.jsonl", "npx", "-y", "@modelcontextprotocol/server-memory@2.2.1"]
+  fixture: ../fixtures/team_memory
+  timeout_s: 120   # first run downloads the server
+
+tools:   # readOnlyHint: true per the server's own annotations; create/delete/add tools never exposed
+  - read_graph
+  - search_nodes
+  - open_nodes
+
+max_steps: 10
+repeats: 3
+
+variants:
+  - name: baseline
+    description: Server exactly as shipped.
+
+tasks:
+  - id: manager_of_priya
+    prompt: Who does Priya Nair report to?
+    checks:
+      - {type: answer_contains, expected: Arjun}
+
+  - id: atlas_database
+    prompt: Which database does Project Atlas use?
+    checks:
+      - {type: answer_contains, expected: PostgreSQL}
+
+  - id: atlas_team_size
+    prompt: How many people work on Project Atlas?
+    checks:
+      - {type: answer_regex, pattern: '(?i)\b(3|three)\b'}
+
+  - id: pune_people
+    prompt: Which of our people are based in Pune? Give their full names.
+    checks:
+      - {type: answer_contains, expected: Priya}
+      - {type: answer_contains, expected: Dev Kapoor}
+
+  - id: beacon_member_city
+    prompt: In which city is the person who works on Project Beacon based?
+    checks:
+      - {type: answer_contains, expected: Lisbon}

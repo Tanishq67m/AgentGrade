@@ -1,0 +1,16 @@
+{"type": "entity", "name": "Priya Nair", "entityType": "person", "observations": ["Role: backend engineer", "Joined in 2024", "Based in Pune"]}
+{"type": "entity", "name": "Arjun Mehta", "entityType": "person", "observations": ["Role: engineering manager", "Based in Bengaluru"]}
+{"type": "entity", "name": "Sara Lopez", "entityType": "person", "observations": ["Role: data engineer", "Based in Lisbon"]}
+{"type": "entity", "name": "Dev Kapoor", "entityType": "person", "observations": ["Role: product designer", "Based in Pune"]}
+{"type": "entity", "name": "Project Atlas", "entityType": "project", "observations": ["Customer billing platform", "Database: PostgreSQL", "Deadline: 2027-03-31"]}
+{"type": "entity", "name": "Project Beacon", "entityType": "project", "observations": ["Internal analytics dashboard", "Database: ClickHouse"]}
+{"type": "entity", "name": "Pune Office", "entityType": "office", "observations": ["Opened in 2023", "Seats: 40"]}
+{"type": "relation", "from": "Priya Nair", "to": "Arjun Mehta", "relationType": "reports_to"}
+{"type": "relation", "from": "Sara Lopez", "to": "Arjun Mehta", "relationType": "reports_to"}
+{"type": "relation", "from": "Dev Kapoor", "to": "Sara Lopez", "relationType": "reports_to"}
+{"type": "relation", "from": "Priya Nair", "to": "Project Atlas", "relationType": "works_on"}
+{"type": "relation", "from": "Dev Kapoor", "to": "Project Atlas", "relationType": "works_on"}
+{"type": "relation", "from": "Sara Lopez", "to": "Project Atlas", "relationType": "works_on"}
+{"type": "relation", "from": "Sara Lopez", "to": "Project Beacon", "relationType": "works_on"}
+{"type": "relation", "from": "Priya Nair", "to": "Pune Office", "relationType": "sits_in"}
+{"type": "relation", "from": "Dev Kapoor", "to": "Pune Office", "relationType": "sits_in"}

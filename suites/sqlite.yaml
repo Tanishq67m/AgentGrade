@@ -1,0 +1,63 @@
+# AgentGrade suite: can an agent answer business questions over a SQL database via the
+# reference SQLite MCP server (mcp-server-sqlite)?
+#
+#   uv run agentgrade run suites/sqlite.yaml
+#
+# Every run rebuilds the SAME database (fixtures/shop_sqlite/build_db.py). Ground truth is
+# listed at the top of that file.
+
+name: shop-sqlite
+description: Read-only SQL questions over a small shop database via mcp-server-sqlite.
+
+model:
+  provider: ollama
+  name: qwen3:4b-instruct
+  temperature: 0.7
+
+server:
+  # mcp-server-sqlite (archived reference server) doesn't pin its SDK and crashes on mcp>=2
+  # ("'Server' object has no attribute 'list_resources'"), so pin the last 1.x SDK.
+  command: uvx
+  args: ["--with", "mcp==1.30.0", "mcp-server-sqlite==2025.4.25", "--db-path", "{root}/shop.db"]
+  setup:
+    - ["{python}", "{suite_dir}/../fixtures/shop_sqlite/build_db.py", "{root}"]
+  timeout_s: 120   # first run downloads the server
+
+tools:   # read-only; write_query, create_table and append_insight are never exposed
+  - list_tables
+  - describe_table
+  - read_query
+
+max_steps: 10
+repeats: 3
+
+variants:
+  - name: baseline
+    description: Server exactly as shipped.
+
+tasks:
+  - id: delivered_revenue
+    prompt: What is our total revenue in USD from delivered orders?
+    checks:
+      - {type: answer_number, expected: 336.49, tolerance: 0.005}
+
+  - id: top_spender
+    prompt: Which customer has spent the most on delivered orders?
+    checks:
+      - {type: answer_contains, expected: Chloe}
+
+  - id: india_order_count
+    prompt: How many orders were placed by customers in India, whatever their status?
+    checks:
+      - {type: answer_regex, pattern: '(?i)\b(3|three)\b'}
+
+  - id: refunded_order
+    prompt: Which customer had an order refunded, and how much was it in USD?
+    checks:
+      - {type: answer_contains, expected: Chloe}
+      - {type: answer_number, expected: 60}
+
+  - id: october_orders
+    prompt: How many orders were created in October 2026?
+    checks:
+      - {type: answer_regex, pattern: '(?i)\b(4|four)\b'}

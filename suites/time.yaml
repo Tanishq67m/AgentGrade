@@ -1,0 +1,53 @@
+# AgentGrade suite: can an agent do time-zone conversions with the official time MCP server
+# (mcp-server-time)?
+#
+#   uv run agentgrade run suites/time.yaml
+#
+# DATE-DEPENDENT: convert_time uses today's date, so daylight-saving rules apply. The expected
+# answers below hold from 2026-11-01 to 2027-03-13 (US standard time, UK GMT, Sydney AEDT).
+# Re-derive them before running outside that window.
+
+name: time-zones
+description: Time-zone conversion questions via mcp-server-time.
+
+model:
+  provider: ollama
+  name: qwen3:4b-instruct
+  temperature: 0.7
+
+server:
+  command: uvx
+  args: ["mcp-server-time==2026.11.18", "--local-timezone", "Asia/Kolkata"]
+  timeout_s: 120   # first run downloads the server
+
+tools:   # both tools are read-only
+  - get_current_time
+  - convert_time
+
+max_steps: 8
+repeats: 3
+
+variants:
+  - name: baseline
+    description: Server exactly as shipped.
+
+tasks:
+  - id: pune_to_sf
+    prompt: My call is at 21:30 in Pune, India. What time is that in San Francisco?
+    checks:
+      - {type: answer_regex, pattern: '(?i)\b0?8[:.]00\b|\b8\s*a\.?m\b'}
+
+  - id: tokyo_to_london
+    prompt: It is 09:00 in Tokyo. What time is it in London?
+    checks:
+      - {type: answer_regex, pattern: '(?i)\b00[:.]00\b|midnight|\b12[:.]?0{0,2}\s*a\.?m\b'}
+
+  - id: sydney_to_india
+    prompt: A deploy is scheduled for 06:00 Sydney time. What time is that in India?
+    checks:
+      - {type: answer_regex, pattern: '(?i)\b00[:.]30\b|\b12[:.]30\s*a\.?m\b'}
+
+  - id: india_ahead_of_ny
+    prompt: Right now, how many hours ahead of New York is India?
+    checks:
+      - {type: answer_number, expected: 10.5}
