@@ -45,3 +45,14 @@ ADR 0015's positioning is weakened and we say so publicly.
   predicts behavior here"; it cannot prove "TDQS never predicts behavior".
 - Glama's production judge model isn't named, so our absolute scores may differ from glama.ai's.
   Relative comparisons between our own variants are what matter here.
+
+## Outcome (2026-11-18)
+All three predictions held (70 scorings, 0 failed). Full write-up: [CASE_STUDY.md, Finding 6](../CASE_STUDY.md#finding-6-a-published-static-score-could-not-see-the-difference).
+1. Realistic vs generic examples: **3.92 vs 3.92** (120B judge). The 20B judge put the generic version *higher*
+   (4.46 vs 4.26). Measured: 18/24 vs 3/12.
+2. Upstream 2.2.0 description: **A in 10/10 scorings**. Measured: 2/12.
+3. Spearman across 6 filesystem descriptions: **-0.09** (120B), **+0.20** (20B).
+
+Not predicted: on git, TDQS **did** separate the one-line `git_log` description (2.70, C) from the rewrite
+(3.98, A), matching the measured direction (83% → 100%). Static scoring catches missing information, not
+misleading information. Also observed: at temperature 0 the same input scored up to 0.8 apart across repeats (3.7-4.5).

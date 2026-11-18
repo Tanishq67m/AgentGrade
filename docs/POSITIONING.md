@@ -80,11 +80,22 @@ scored 9/12, replicated. Only measurement could reveal that.
 - **Server authors don't care.** If 5 MCP server authors say they would not run this before a release,
   the primary audience is wrong.
 
+## Result of the first test (M7a, 2026-11-18)
+
+The first kill criterion was checked, and it **did not** kill the positioning. It refined it.
+- All six measured `search_files` descriptions were graded **A** by TDQS, while agents passed **8% to 75%** of
+  runs. Rank correlation -0.09 / +0.20 (two judges). The 3/12 and 9/12 descriptions scored the same.
+- But TDQS **did** flag the one-line `git_log` description (C vs A), in the same direction as the measured change.
+
+**Refined positioning:** static scores catch *missing* information. They miss *misleading* information that
+only shows up when a real model uses the tool. So AgentGrade runs both. `agentgrade static-score` is the cheap
+first pass, and measured runs are the proof. Details: [CASE_STUDY.md, Finding 6](CASE_STUDY.md#finding-6-a-published-static-score-could-not-see-the-difference).
+
 ## Plan (replaces "CI mode next")
 
 | Step | What | Why first |
 |---|---|---|
-| **M7a** | **Static vs measured experiment.** Re-implement Glama's published TDQS rubric, score every tool description we have already measured, and compare with measured pass rates. Predictions are written down before running. | Cheap (about 2 days, reuses existing runs). It either proves the positioning or kills it early. It's also strong public content. |
+| **M7a** ✅ | **Static vs measured experiment** (done 2026-11-18, see above). Re-implement Glama's published TDQS rubric, score every tool description we have already measured, and compare with measured pass rates. Predictions are written down before running. | Cheap (about 2 days, reuses existing runs). It either proves the positioning or kills it early. It's also strong public content. |
 | **M7b** | **`agentgrade improve`.** For a failing tool, generate 3-4 candidate rewrites, run each as a variant, and report the winner and by how much. | The core product: fix and prove. |
 | Parallel | **Talk to 5 MCP server authors** (DMs on X or GitHub): "Would you run this before every release?" | Validate the audience before building onboarding. |
 | Later | Generated tasks / ready-made suites for popular servers; then CI mode as a small add-on; then a public index. | Adoption, once the core is proven. |

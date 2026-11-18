@@ -230,9 +230,12 @@ guess; AgentGrade proves which line breaks agents and which rewrite fixes it.* P
 server authors, who don't control the agent or model calling their server.
 
 Plan:
-- **M7a - static vs measured** (ADR 0016): re-implement Glama's published TDQS at a pinned commit,
-  score the 8 descriptions we already measured, and compare. Predictions are written down first. If TDQS
-  separates good from bad descriptions, the positioning weakens and we say so.
+- **M7a - static vs measured** (ADR 0016), **done**: re-implemented Glama's published TDQS at a pinned commit
+  and scored the 8 descriptions we had already measured. All six filesystem descriptions were graded A, while
+  agents passed 8%-75% of runs (Spearman -0.09). The 3/12 and 9/12 versions scored identically. All three
+  pre-written predictions held. TDQS did flag the one-line `git_log` description. Conclusion: static scores
+  catch missing information, not misleading information. AgentGrade now offers both: `static-score` as the
+  cheap first pass, measured runs as the proof.
 - **M7b - `agentgrade improve`:** generate 3-4 description rewrites for a failing tool, run each as a
   variant, and recommend only a measured winner.
 - **In parallel:** ask 5 MCP server authors whether they would run this before every release.

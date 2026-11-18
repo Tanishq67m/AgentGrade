@@ -1,8 +1,11 @@
 # Case study: what makes agents fail on MCP servers, and which fixes actually work
 
 **312 evaluated agent runs on two official MCP servers** (filesystem, git), two models, every answer checked in
-code, every run traced. Run with [AgentGrade](../README.md), October-November 2026.
+code, every run traced, plus 70 scorings of the same descriptions by a published static grader. Run with [AgentGrade](../README.md), October-November 2026.
 
+> **Version 1.1, 2026-11-18:** adds [Finding 6](#finding-6-a-published-static-score-could-not-see-the-difference),
+> static description scores vs measured behavior.
+>
 > **Version 1, 2026-11-16.** All experiments complete. Raw reports are in [`results/`](../results/).
 > Reported upstream with the data: [modelcontextprotocol/servers#5552](https://github.com/modelcontextprotocol/servers/issues/5552)
 > (git `git_log`) and [#5553](https://github.com/modelcontextprotocol/servers/issues/5553) (filesystem `search_files` examples).
@@ -28,6 +31,12 @@ code, every run traced. Run with [AgentGrade](../README.md), October-November 20
    descriptions and unhelpful errors mostly hurt small, cheap models.**
 6. **Strong models fail differently:** they assume real-CLI semantics the tool doesn't support (git range syntax),
    and mis-copy long opaque paths. They're better, not immune.
+
+7. **A published static score couldn't see any of this.** We re-implemented Glama's Tool Definition Quality
+   Score (TDQS) and had it grade the six `search_files` descriptions we had measured. All six were graded
+   **A**, while measured pass rates ran from **8% to 75%**. The rank correlation was **-0.09** (and +0.20 with a
+   second judge). The 3/12 and 9/12 descriptions got **the same score (3.92)**. Static scoring did flag the
+   one-line `git_log` description (C vs A), so it catches *missing* information, not *misleading* information.
 
 These are findings about the specific setups below, not universal laws. See [Limitations](#limitations).
 
@@ -161,6 +170,61 @@ All 3 failures of the 120B model across 54 runs:
 Better models shift failures from "doesn't try" to "tries the wrong thing confidently", and the fix is the same:
 say what the tool accepts, and make errors say what to do instead.
 
+## Finding 6: a published static score could not see the difference
+
+**Question.** Static graders score a tool definition by reading it, without running an agent. Glama's TDQS is
+the one that publishes its full method: six dimensions scored 1-5 by an LLM judge, then weighted, with tiers
+A ≥ 3.5, B ≥ 3.0 (passing), C, D. Does a TDQS score predict what agents actually do?
+
+**Method** ([ADR 0016](decisions/0016-static-vs-measured.md)).
+- TDQS re-implemented from its spec at a pinned commit (`b9881b0`), including its exact prompts.
+- We scored the exact definitions the agent saw in our runs: the server's real schema and annotations, with only
+  the description changed per variant.
+- Judges: `gpt-oss-120b` and `gpt-oss-20b` on Groq at temperature 0, 5 scorings per description.
+- Measured pass rates were pooled from the existing `results.json` files (qwen3:4b-instruct). No new agent runs.
+- Three predictions were written down **before** running.
+
+**Filesystem `search_files`: six descriptions, all "A"**
+
+| Description | TDQS, 120B judge | TDQS, 20B judge | Measured (4B agent) |
+|---|---|---|---|
+| baseline (2.0.0) | 3.62 A | 3.80 A | 4/36 (11%) |
+| explore-first-only | **4.12 A** (tied highest) | 4.40 A | **1/12 (8%)**, the worst |
+| upstream-2.2.0-description | 4.04 A | 4.38 A | 2/12 (17%) |
+| glob-rules-generic-examples | 3.92 A | 4.46 A | 3/12 (25%) |
+| clear-search-description | 4.12 A | 4.56 A | 17/24 (71%) |
+| glob-rules-only (realistic examples) | 3.92 A | 4.26 A | **18/24 (75%)** |
+| **Spearman rank correlation** | **-0.09** | **+0.20** | |
+
+**Predictions vs outcome.**
+1. *The realistic-examples and generic-examples versions score within 0.3 of each other.* **Held:** 3.92 vs 3.92
+   (120B). The 20B judge ranked the generic version **higher** (4.46 vs 4.26), even though it passed 3/12 vs 18/24.
+2. *Upstream 2.2.0's description is graded B or better despite failing 10 of 12.* **Held:** A in 10 of 10 scorings.
+3. *TDQS does not reliably rank the measured winners first (Spearman < 0.5).* **Held:** -0.09 and +0.20.
+
+Across 60 filesystem scorings, the justifications note that the description "gives examples" 13 times, but never
+whether those examples are realistic or placeholders. That was the one detail that changed agent behavior 3×. It praised the matching rules, which our ablation showed
+were *not* what helped.
+
+**Git `git_log`: static scoring got this one right.** The original one-line description *"Shows the commit
+logs"* scored **2.70 (C)** in all 5 scorings. The rewritten one scored **3.98 (A)**. Measured pass rate went 83% → 100%.
+The judge named the real gap: the description *"does not explain any parameters"*.
+
+**What this means.**
+- Static scores catch **missing** information: a one-liner with undocumented parameters.
+- They can't tell apart descriptions that are all complete and well written but behave very differently with
+  a real model. That last-mile difference (8% vs 75% here) only shows up when you run agents.
+- Static scoring is a useful, cheap **first pass**. It isn't evidence that agents will succeed.
+- **Judge noise is as large as the differences.** At temperature 0, identical input scored 3.4-4.0, and
+  in another case 3.7-4.5, across 5 scorings. A single static score per tool can cross a tier boundary by chance.
+
+**Limits.** Six descriptions of one tool, one agent model, and our re-implementation run with open judges.
+Glama's production judge model isn't published, so absolute scores may differ on glama.ai. This shows TDQS
+did not track behavior *here*. It doesn't show it never does. Reports:
+[120B](../results/2026-11-17-static-tdqs-filesystem-gpt-oss-120b.md),
+[20B](../results/2026-11-18-static-tdqs-filesystem-gpt-oss-20b.md),
+[git](../results/2026-11-17-static-tdqs-git-gpt-oss-120b.md).
+
 ## What this means for MCP server authors
 
 *(Findings 1 and 2 were filed as [#5553](https://github.com/modelcontextprotocol/servers/issues/5553) and
@@ -179,6 +243,9 @@ say what the tool accepts, and make errors say what to do instead.
 5. **Say what syntax a parameter does *not* accept** when it looks like a familiar CLI flag or argument
    ("`target` takes one branch or commit; ranges like `a..b` are not supported").
 6. **Test with the small models your users will actually run.** A strong model hides most of these problems.
+7. **Treat a description-quality grade as a lint, not a test.** It will catch a missing explanation. It won't
+   catch an example that makes a small model give up. All six of our filesystem descriptions got an A.
+   Measured, they ranged from 8% to 75%.
 
 ## Limitations
 
@@ -207,6 +274,10 @@ uv run agentgrade run suites/shop-upstream-2.2.0.yaml
 uv run agentgrade run suites/git.yaml           # git, 4 variants
 uv run agentgrade run suites/shop.yaml --model model_configs/groq-gpt-oss-120b.yaml --variants baseline,glob-rules-only
 uv run agentgrade run suites/git.yaml --model model_configs/groq-gpt-oss-120b.yaml --variants baseline,repo-path-given
+# Finding 6: static scores (needs GROQ_API_KEY); --compare takes your own run folders
+uv run agentgrade static-score suites/shop.yaml --judge model_configs/judge-groq-gpt-oss-120b.yaml --tools search_files \
+  --variants baseline,glob-rules-only,explore-first-only,clear-search-description,upstream-2.2.0-description,glob-rules-generic-examples \
+  --reference baseline --compare runs/<filesystem run folders>
 ```
 
 Raw reports: [`results/`](../results/). Every run's trace is written to `runs/<id>/traces/`.

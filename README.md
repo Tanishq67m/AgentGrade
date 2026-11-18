@@ -149,7 +149,7 @@ docs/              PROJECT.md, STATUS.md, decisions/
 |---|---|
 | M0-M5 Foundation, agent loop, MCP client, traces, suites/variants/reports, second server, hosted models | done |
 | M6 Public case study ([CASE_STUDY.md](docs/CASE_STUDY.md)), upstream issues #5552, #5553 | done |
-| M7a Static vs measured: do published description scores (Glama TDQS) predict agent success? | in progress |
+| M7a Static vs measured: TDQS graded all six descriptions A; agents passed 8%-75% ([Finding 6](docs/CASE_STUDY.md#finding-6-a-published-static-score-could-not-see-the-difference)) | done |
 | M7b `agentgrade improve`: generate description rewrites, A/B them, recommend only what measurably helps | next |
 | Later | Generated tasks / ready-made suites for popular servers, CI mode, public index, paid models |
 

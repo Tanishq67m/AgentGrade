@@ -1,9 +1,14 @@
 # Project Status
 
-_Last updated: 2026-11-17_
+_Last updated: 2026-11-18_
 
 ## Current objective
-**M7a - static vs measured** (ADR 0016). Positioning reviewed 2026-11-17 (ADR 0015,
+**M7a done (2026-11-18).** TDQS graded all six measured `search_files` descriptions **A** while agents passed
+8%-75% (Spearman -0.09 / +0.20, two judges). The 3/12 and 9/12 descriptions scored the same (3.92). All three
+pre-registered predictions held. TDQS did catch the one-line `git_log` description (C vs A). Case study v1.1,
+Finding 6. Next: **M7b `agentgrade improve`**, plus talking to 5 MCP server authors.
+
+Previous: **M7a - static vs measured** (ADR 0016). Positioning reviewed 2026-11-17 (ADR 0015,
 [POSITIONING.md](POSITIONING.md)): harness features (repeats, traces, CI gates) are commodity; the gap
 is proving *which line* of a tool description breaks agents and *which rewrite* fixes it. First test
 of that claim: re-implement Glama's published TDQS, score the 8 descriptions we already measured, and
@@ -51,6 +56,12 @@ identified the active change (results below). Next: M5 (more servers + a stronge
   re-classification, ablation + agent-side variants (ADR 0012). 120 tests passing.
 
 ## Results log
+
+**2026-11-18 - static vs measured (TDQS, 70 scorings, no new agent runs).** Filesystem `search_files`, judge
+gpt-oss-120b / gpt-oss-20b: baseline 3.62 / 3.80 (measured 4/36), explore-first-only 4.12 / 4.40 (1/12),
+upstream-2.2.0 4.04 / 4.38 (2/12), generic-examples 3.92 / 4.46 (3/12), clear-search 4.12 / 4.56 (17/24),
+glob-rules-only 3.92 / 4.26 (18/24). All tier A. Spearman -0.09 / +0.20. Git `git_log` (120B): original 2.70 C
+(25/30) vs rewrite 3.98 A (15/15). Reports: `results/2026-11-1[78]-static-tdqs-*.md`.
 | Date | Task | Model | Tools | Result | Notes |
 |---|---|---|---|---|---|
 | 2026-10-22 | `shop.shipping_cost_a17` | `qwen3:4b-instruct` (`0edcdef34593`, Q4_K_M) | 6 read-only filesystem tools | **FAIL** - `max_steps` (10), no answer, 40.2 s, 14167 in / 853 out tokens | Trace `20261022T085044Z-227814`. Used only `search_files`, with 9 non-recursive glob patterns (`order*.json`, `A17*.csv`, ...) though the file is at `orders/A17.json` and the description says to use `**/` for subfolders. Steps 4-10 repeat "try a broader pattern" without broadening. Never tried `list_directory`/`directory_tree`. Server verified correct: `**/A17*` and `shipping*.json` match. |
@@ -177,6 +188,6 @@ See [decisions/README.md](decisions/README.md) (0001-0016).
 | M5b | Second server: git (`suites/git.yaml`) | Done |
 | M5 | Third server; refine taxonomy; actionable recommendations in reports | Not started |
 | M6 | Public case study: before/after results + write-up; README results section | Done (case study v1; issues #5552, #5553) |
-| M7a | Static vs measured: TDQS scores vs measured pass rates (ADR 0016) | In progress |
+| M7a | Static vs measured: TDQS scores vs measured pass rates (ADR 0016) | Done (Finding 6) |
 | M7b | `agentgrade improve`: generate description rewrites, run them as variants, recommend the measured winner | Next |
 | Later | Generated tasks / ready-made suites, CI mode, public index, HTML report, paid model adapters, container isolation | - |
