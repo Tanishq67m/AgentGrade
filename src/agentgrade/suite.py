@@ -4,10 +4,11 @@ A suite answers: "on THIS server, with THIS model, how reliably are THESE tasks 
 and does a change (a variant) make it better or worse?"
 
 Variants are the before/after mechanism. Each one changes exactly one thing relative to
-the baseline - the tool set, a tool's description (server-side fix), or the agent's system
-prompt (agent-side fix) - so a difference in pass rate can be attributed to that change.
+the baseline - the tool set, a tool's description (server-side fix), the agent's system
+prompt (agent-side fix), or the server build itself (e.g. a proposed patch) - so a difference
+in pass rate can be attributed to that change.
 Description overrides let a server author test a better tool description WITHOUT redeploying
-the server.
+the server; a server override tests the real patched code, schema changes included.
 """
 
 from __future__ import annotations
@@ -58,6 +59,18 @@ class ServerConfig(_Strict):
     timeout_s: float = 60.0
 
 
+class ServerOverride(_Strict):
+    """A variant that runs a different server build: same fixture, setup and tasks.
+
+    Use it to A/B two versions of the same server, e.g. main vs a proposed patch. Only the
+    process changes; everything else in the suite stays fixed.
+    """
+
+    command: str | None = None  # None = keep the suite's command
+    args: list[str] | None = None  # None = keep the suite's args; `{root}`, `{suite_dir}` allowed
+    label: str | None = None  # shown in reports, e.g. "fork@b3c9386b (proposed patch)"
+
+
 class AnswerNumberCheck(_Strict):
     type: Literal["answer_number"]
     expected: float
@@ -99,6 +112,7 @@ class Variant(_Strict):
     tools: list[str] | None = None  # None = suite allowlist; otherwise must be a SUBSET of it
     description_overrides: dict[str, str] = Field(default_factory=dict)  # server-side fix
     system_prompt_suffix: str | None = None  # agent-side fix: appended to the default prompt
+    server: ServerOverride | None = None  # a different server build (e.g. a proposed patch)
 
 
 class Suite(_Strict):
@@ -139,6 +153,17 @@ class Suite(_Strict):
                     )
         return self
 
+    def server_for(self, variant: Variant) -> ServerConfig:
+        """The server this variant runs: the suite's, with the variant's command/args if set."""
+        if variant.server is None:
+            return self.server
+        update = {
+            k: v
+            for k, v in (("command", variant.server.command), ("args", variant.server.args))
+            if v is not None
+        }
+        return self.server.model_copy(update=update)
+
     def tools_for(self, variant: Variant) -> list[str]:
         return list(variant.tools) if variant.tools is not None else list(self.tools)
 
@@ -157,6 +182,18 @@ def load_suite(path: Path) -> Suite:
     suite = Suite.model_validate(data)
     suite_dir = str(path.parent.resolve())
     suite.server.args = [a.replace(SUITE_DIR_PLACEHOLDER, suite_dir) for a in suite.server.args]
+    suite.server.command = suite.server.command.replace(SUITE_DIR_PLACEHOLDER, suite_dir)
+    for variant in suite.variants:
+        if variant.server is None:
+            continue
+        if variant.server.command is not None:
+            variant.server.command = variant.server.command.replace(
+                SUITE_DIR_PLACEHOLDER, suite_dir
+            )
+        if variant.server.args is not None:
+            variant.server.args = [
+                a.replace(SUITE_DIR_PLACEHOLDER, suite_dir) for a in variant.server.args
+            ]
     suite.server.setup = [
         [a.replace(SUITE_DIR_PLACEHOLDER, suite_dir) for a in cmd] for cmd in suite.server.setup
     ]

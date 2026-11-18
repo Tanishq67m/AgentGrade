@@ -1,8 +1,21 @@
 # Project Status
 
-_Last updated: 2026-11-18_
+_Last updated: 2026-11-18 (patch check)_
 
 ## Current objective
+**Patch check done, 2026-11-18 (Finding 7).** Filesystem 2.3.0: the community patch scored 2/12 (main 1/24).
+Our own 9/12-on-2.0.0 description scored 4/12 on 2.3.0. A 2×2 (schemas × other-tool descriptions) gave 7/6/5/4 of 12,
+so the claim in #5553 held on 2.0.0 only. Git 2026.11.11: patch 15/15 vs main 14/15. Comments for both issues are in
+`docs/upstream/2026-11-18-patch-check.md` (Tanishq posts them). Next: M7b `agentgrade improve`. Its first real
+target is a description that works on filesystem 2.3.0.
+
+Previous: **Patch check (ADR 0017), 2026-11-18.** #5552 and #5553 were triaged (Priority Low) into the **v2.6.0
+milestone**. A contributor posted a patch for both (fork commit `b3c9386b`). Built: variant-level `server:`
+override, `scripts/build_server_target.sh`, and suites `pr-5553-filesystem.yaml` / `pr-5552-git.yaml`
+(parent commit vs patch, plus one single-change variant each). Next: run both on the Mac, then post ONE
+comment with the measured table on each issue.
+
+Previous:
 **M7a done (2026-11-18).** TDQS graded all six measured `search_files` descriptions **A** while agents passed
 8%-75% (Spearman -0.09 / +0.20, two judges). The 3/12 and 9/12 descriptions scored the same (3.92). All three
 pre-registered predictions held. TDQS did catch the one-line `git_log` description (C vs A). Case study v1.1,
@@ -56,6 +69,12 @@ identified the active change (results below). Next: M5 (more servers + a stronge
   re-classification, ablation + agent-side variants (ADR 0012). 120 tests passing.
 
 ## Results log
+
+**2026-11-18 - patch check (153 runs, qwen3:4b-instruct, digest 0edcdef34593).** Filesystem 2.3.0 (`e1d154ee`):
+main 1/12 + 0/12, patch `b3c9386b` 2/12, patch + user-data examples 2/12, patch with softened first sentence 0/12,
+main + our glob-rules-only text 4/12. 2×2 with our text: 2.0.0 schemas + 2.0.0 descriptions 7/12, 2.0.0 + 2.3.0 descriptions 6/12,
+2.3.0 schemas + 2.0.0 descriptions 5/12, (2.3.0 + 2.3.0 = 4/12). Git 2026.11.11 (path given): main 14/15, patch 15/15,
+our wording 15/15. Reports: `results/2026-11-18-pr555*`.
 
 **2026-11-18 - static vs measured (TDQS, 70 scorings, no new agent runs).** Filesystem `search_files`, judge
 gpt-oss-120b / gpt-oss-20b: baseline 3.62 / 3.80 (measured 4/36), explore-first-only 4.12 / 4.40 (1/12),
@@ -189,5 +208,6 @@ See [decisions/README.md](decisions/README.md) (0001-0016).
 | M5 | Third server; refine taxonomy; actionable recommendations in reports | Not started |
 | M6 | Public case study: before/after results + write-up; README results section | Done (case study v1; issues #5552, #5553) |
 | M7a | Static vs measured: TDQS scores vs measured pass rates (ADR 0016) | Done (Finding 6) |
+| M7-patch | Measure the community patch for #5552/#5553 on real builds (ADR 0017) | Done (Finding 7) |
 | M7b | `agentgrade improve`: generate description rewrites, run them as variants, recommend the measured winner | Next |
 | Later | Generated tasks / ready-made suites, CI mode, public index, HTML report, paid model adapters, container isolation | - |

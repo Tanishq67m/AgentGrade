@@ -143,6 +143,25 @@ fixtures/          ground-truth data agents work on (git_repo/build_repo.py buil
 docs/              PROJECT.md, STATUS.md, decisions/
 ```
 
+## Test a proposed server patch
+
+A variant can run a different build of the server, so you can measure a patch on the real code before it
+merges ([ADR 0017](docs/decisions/0017-measure-proposed-patches.md)):
+
+```yaml
+variants:
+  - name: main
+  - name: patch
+    server:
+      args: ["{suite_dir}/../.targets/my-patch/src/filesystem/dist/index.js", "{root}"]
+      label: my-fork@abc1234
+```
+
+`scripts/build_server_target.sh <repo-url> <commit> <name>` checks out and builds one commit into `.targets/`.
+Live examples: [`suites/pr-5553-filesystem.yaml`](suites/pr-5553-filesystem.yaml) and
+[`suites/pr-5552-git.yaml`](suites/pr-5552-git.yaml) measure the community patch for our upstream issues
+#5553 and #5552.
+
 ## Roadmap
 
 | Milestone | |
@@ -150,6 +169,7 @@ docs/              PROJECT.md, STATUS.md, decisions/
 | M0-M5 Foundation, agent loop, MCP client, traces, suites/variants/reports, second server, hosted models | done |
 | M6 Public case study ([CASE_STUDY.md](docs/CASE_STUDY.md)), upstream issues #5552, #5553 | done |
 | M7a Static vs measured: TDQS graded all six descriptions A; agents passed 8%-75% ([Finding 6](docs/CASE_STUDY.md#finding-6-a-published-static-score-could-not-see-the-difference)) | done |
+| Patch check: the community patch for #5553 didn't fix 2.3.0 (2/12), and neither did our own 9/12 text (4/12); git patch held 15/15 ([Finding 7](docs/CASE_STUDY.md#finding-7-a-fix-measured-on-one-version-did-not-survive-the-next)) | done |
 | M7b `agentgrade improve`: generate description rewrites, A/B them, recommend only what measurably helps | next |
 | Later | Generated tasks / ready-made suites for popular servers, CI mode, public index, paid models |
 

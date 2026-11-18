@@ -36,7 +36,7 @@ from agentgrade.evaluate import FATAL_ERRORS, run_setup
 from agentgrade.mcp_client import McpServerConfig, McpToolInfo, connect
 from agentgrade.models.base import ModelAdapter
 from agentgrade.report import wilson_interval
-from agentgrade.suite import ROOT_PLACEHOLDER, Suite, Variant
+from agentgrade.suite import ROOT_PLACEHOLDER, ServerConfig, Suite, Variant
 from agentgrade.trace import new_run_id
 from agentgrade.types import Message
 
@@ -392,8 +392,14 @@ async def score_tool(
 # Running it over a suite's variants
 
 
-async def snapshot_tools(suite: Suite, log: Path) -> tuple[list[McpToolInfo], dict[str, Any]]:
-    """Start the suite's server once (fixture + setup, like a real run) and record tools/list."""
+async def snapshot_tools(
+    suite: Suite, log: Path, launch: ServerConfig | None = None
+) -> tuple[list[McpToolInfo], dict[str, Any]]:
+    """Start a server once (fixture + setup, like a real run) and record tools/list.
+
+    `launch` is the command to run (a variant's server build); default: the suite's server.
+    """
+    launch = launch or suite.server
     with tempfile.TemporaryDirectory(prefix="agentgrade-static-") as tmp:
         root = Path(tmp).resolve() / "sandbox"
         if suite.server.fixture is not None:
@@ -403,8 +409,8 @@ async def snapshot_tools(suite: Suite, log: Path) -> tuple[list[McpToolInfo], di
         await run_setup(suite.server.setup, root, log)
         server = McpServerConfig(
             name=suite.name,
-            command=suite.server.command,
-            args=[a.replace(ROOT_PLACEHOLDER, str(root)) for a in suite.server.args],
+            command=launch.command,
+            args=[a.replace(ROOT_PLACEHOLDER, str(root)) for a in launch.args],
             timeout_s=suite.server.timeout_s,
             stderr_log=log,
         )
@@ -453,15 +459,30 @@ async def score_suite(
     repeats: int,
     on_score: ProgressFn | None = None,
 ) -> tuple[list[StaticScore], dict[str, Any]]:
-    server_tools, server_info = await snapshot_tools(suite, out_dir / "server.log")
-    (out_dir / "tool_definitions.json").write_text(
-        json.dumps([dataclasses.asdict(t) for t in server_tools], indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    # One tools/list snapshot per distinct server build (variants may run a proposed patch).
+    snapshots: dict[tuple[str, tuple[str, ...]], tuple[list[McpToolInfo], dict[str, Any]]] = {}
+    server_info: dict[str, Any] = {}
     cache: dict[str, list[StaticScore]] = {}  # identical definitions are scored once
     scores: list[StaticScore] = []
     with (out_dir / "static_scores.jsonl").open("w", encoding="utf-8") as sink:
         for variant in variants:
+            launch = suite.server_for(variant)
+            build = (launch.command, tuple(launch.args))
+            if build not in snapshots:
+                suffix = "" if not snapshots else f".{variant.name}"
+                snapshots[build] = await snapshot_tools(
+                    suite, out_dir / f"server{suffix}.log", launch
+                )
+                (out_dir / f"tool_definitions{suffix}.json").write_text(
+                    json.dumps(
+                        [dataclasses.asdict(t) for t in snapshots[build][0]],
+                        indent=2,
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+            server_tools, info = snapshots[build]
+            server_info = server_info or info
             for tool, siblings in variant_definitions(server_tools, suite, variant, only_tools):
                 key = definition_hash(tool, siblings)
                 reused = key in cache

@@ -272,3 +272,57 @@ async def test_server_stderr_goes_to_the_run_log_not_the_console(tmp_path: Path,
         "NOISY-SERVER-WARNING" in (out_dir / "server_logs" / "baseline__todo__r1.log").read_text()
     )
     assert "NOISY-SERVER-WARNING" not in capfd.readouterr().err
+
+
+PATCHED_SERVER = str(Path(__file__).parent / "fixtures" / "notes_server_patched.py")
+
+
+async def test_a_variant_can_run_a_different_server_build(tmp_path: Path):
+    suite = Suite.model_validate(
+        {
+            **SUITE.model_dump(mode="json", exclude={"variants"}),
+            "repeats": 1,
+            "variants": [
+                {"name": "main"},
+                {
+                    "name": "patch",
+                    "server": {"args": [PATCHED_SERVER], "label": "proposed patch"},
+                },
+            ],
+        }
+    )
+    models: dict[str, ScriptedModel] = {}
+
+    def agent(suite, variant, task, repeat):
+        models[variant.name] = ScriptedModel([final_answer("finish AgentGrade M2")])
+        return models[variant.name]
+
+    result, out_dir = await run_suite(suite, agent, tmp_path)
+
+    # each variant really talked to its own server process
+    seen = {
+        name: next(t.description for t in m.received_tools[0] if t.name == "read_note")
+        for name, m in models.items()
+    }
+    assert seen == {
+        "main": "Read one note by name.",
+        "patch": "Read one note by its exact name. Call list_notes first to see the names.",
+    }
+    assert result.servers["main"]["server_name"] == "agentgrade-test-notes"
+    assert result.servers["main"]["label"] is None
+    assert result.servers["patch"]["server_name"] == "agentgrade-test-notes-patched"
+    assert result.servers["patch"]["label"] == "proposed patch"
+    patch_trace = read_trace(out_dir / next(r.trace for r in result.runs if r.variant == "patch"))
+    assert patch_trace[0]["metadata"]["server"]["server_name"] == "agentgrade-test-notes-patched"
+
+    report = render_report(result)
+    assert "| Server builds | **main**: suite server (agentgrade-test-notes" in report
+    assert "**patch**: proposed patch (agentgrade-test-notes-patched" in report
+    # old results.json files (no `servers` key) still load
+    assert json.loads((out_dir / "results.json").read_text())["servers"]
+
+
+async def test_suites_without_server_overrides_record_no_per_variant_servers(tmp_path: Path):
+    result, _ = await run_suite(SUITE, factory, tmp_path, repeats=1)
+    assert result.servers == {}
+    assert "| Server | agentgrade-test-notes" in render_report(result)

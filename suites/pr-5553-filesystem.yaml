@@ -1,0 +1,164 @@
+# Measures a PROPOSED upstream fix before it is merged.
+# modelcontextprotocol/servers#5553: a community patch (shivamm-gupta, fork commit b3c9386b) adds
+# realistic examples to search_files. Here it runs against the commit it is based on
+# (e1d154ee, filesystem 2.3.0). Same model, tasks and fixture as suites/shop.yaml.
+#
+# Build both servers once (needs git + Node 24):
+#   bash scripts/build_server_target.sh https://github.com/shivamm-gupta/servers.git e1d154ee03703da9bb00b81f36a6704cae6caa3d servers-main
+#   bash scripts/build_server_target.sh https://github.com/shivamm-gupta/servers.git b3c9386b24a89eb33bc4e22108ca58e286f01d32 pr-5553-5552
+# Then:
+#   uv run agentgrade run suites/pr-5553-filesystem.yaml
+
+name: pr-5553-filesystem
+description: search_files on filesystem 2.3.0 main vs the proposed #5553 patch, real builds.
+
+model:
+  provider: ollama
+  name: qwen3:4b-instruct
+  temperature: 0.7
+
+server:   # main (the patch's parent commit); the patch variants swap in the patched build
+  command: node
+  args: ["{suite_dir}/../.targets/servers-main/src/filesystem/dist/index.js", "{root}"]
+  fixture: ../fixtures/shop
+
+tools:   # read-only allowlist, same as suites/shop.yaml
+  - list_allowed_directories
+  - list_directory
+  - directory_tree
+  - read_text_file
+  - search_files
+  - get_file_info
+
+max_steps: 10
+repeats: 3
+
+variants:
+  - name: main-2.3.0
+    description: The server as it is on main today (the patch's parent commit).
+    server:
+      label: main e1d154e (filesystem 2.3.0)
+
+  - name: patch-b3c9386b
+    description: >
+      The proposed patch, as built: realistic examples ('**/*.json', '**/package.json',
+      '**/*config*') added in brackets after the generic ones, in the tool description AND
+      the `pattern` parameter description.
+    server:
+      args: ["{suite_dir}/../.targets/pr-5553-5552/src/filesystem/dist/index.js", "{root}"]
+      label: fork b3c9386b (proposed patch)
+
+  # One change on top of the patch: the tool description's examples are the ones we measured
+  # at 9/12 on 2.0.0 (suites/shop.yaml glob-rules-only), i.e. user-data style instead of
+  # developer-file style. The `pattern` parameter keeps the patch's text. Tests whether the
+  # KIND of example matters, not just having realistic ones.
+  - name: patch-user-data-examples
+    description: The patch, with the tool description's example list changed to user-data style.
+    server:
+      args: ["{suite_dir}/../.targets/pr-5553-5552/src/filesystem/dist/index.js", "{root}"]
+      label: fork b3c9386b + description override
+    description_overrides:
+      search_files: >-
+        Find files and directories by NAME, not by content: this tool never reads or searches
+        inside files. It walks the tree under 'path' and matches a glob pattern against each
+        entry's path relative to 'path' (case-sensitive). Use '*.ext' to match entries directly
+        under 'path', and '**/*.ext' or '**/name' to match at any depth (e.g., '**/*.json',
+        '**/*invoice*'). Returns full paths to all matching items. Great for finding files when
+        you don't know their exact location. Only searches within allowed directories.
+
+  # ---- Follow-up (added after run 20261118T065039Z-a2c8bb: main 1/12, patch 2/12, user-data 2/12).
+  # Our 9/12 description was measured on 2.0.0; on 2.3.0 realistic examples alone did nothing.
+  # 2.3.0's description now OPENS with "by NAME, not by content: this tool never reads or searches
+  # inside files", and every failure was the same refusal: "the tools are for navigating files,
+  # not for retrieving order data". Two single-change tests:
+
+  # Does our 9/12 wording still work on 2.3.0? (search_files description only; main build)
+  - name: main-agentgrade-9of12-description
+    description: main, search_files description replaced by our glob-rules-only text (9/12 on 2.0.0).
+    server:
+      label: main e1d154e + description override
+    description_overrides:
+      search_files: >-
+        Find files and directories by glob pattern under `path`. IMPORTANT: patterns are matched
+        against paths RELATIVE to `path`, and a pattern WITHOUT '**/' only matches entries directly
+        inside `path`, not in subdirectories. To search all subdirectories, start the pattern with
+        '**/', e.g. '**/*.json' or '**/*invoice*'. Matching is on names, not file contents.
+        Returns full paths of all matches. Only searches within allowed directories.
+
+  # Is the opening "never reads or searches inside files" what blocks the examples? The patch's
+  # own text, with ONLY its first sentence softened (the same fact moved later, stated plainly).
+  - name: patch-softened-first-sentence
+    description: The patch, with its first sentence softened; examples and everything else unchanged.
+    server:
+      args: ["{suite_dir}/../.targets/pr-5553-5552/src/filesystem/dist/index.js", "{root}"]
+      label: fork b3c9386b + description override
+    description_overrides:
+      search_files: >-
+        Find files and directories by glob pattern. It walks the tree under 'path' and matches a
+        glob pattern against each entry's path relative to 'path' (case-sensitive). Use '*.ext' to
+        match entries directly under 'path', and '**/*.ext' or '**/name' to match at any depth
+        (e.g., '**/*.json', '**/package.json', '**/*config*'). Matching is on names, not file
+        contents. Returns full paths to all matching items. Great for finding files when you don't
+        know their exact location. Only searches within allowed directories.
+
+  # ---- Follow-up 2 (after run 20261118T074412Z-63d571: on 2.3.0, main 0/12, our 9/12 text 4/12,
+  # softened patch 0/12). Same model digest as the 9/12 runs, so the server version is what changed.
+  # Besides search_files, 2.3.0 changed (a) every parameter's schema description (search_files
+  # 141 -> 789 chars; "must resolve inside the allowed directories" on each path) and (b) the
+  # descriptions of list_directory, directory_tree and get_file_info. A 2x2 separates them; all four
+  # cells use our 9/12 search_files text. Cell 2.3.0-schemas + 2.3.0-descriptions is
+  # main-agentgrade-9of12-description above. Override texts are copied verbatim from the servers.
+
+  - name: v2.0.0-agentgrade-9of12
+    description: Control, today. 2.0.0 server (schemas + descriptions) with our search_files text.
+    server:
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem@2.0.0", "{root}"]
+      label: npm server-filesystem@2.0.0
+    description_overrides:
+      search_files: "Find files and directories by glob pattern under `path`. IMPORTANT: patterns are matched against paths RELATIVE to `path`, and a pattern WITHOUT '**/' only matches entries directly inside `path`, not in subdirectories. To search all subdirectories, start the pattern with '**/', e.g. '**/*.json' or '**/*invoice*'. Matching is on names, not file contents. Returns full paths of all matches. Only searches within allowed directories."
+
+  - name: main-with-2.0.0-descriptions
+    description: 2.3.0 schemas, 2.0.0 descriptions for the other tools, our search_files text.
+    server:
+      label: main e1d154e + 2.0.0 descriptions
+    description_overrides:
+      search_files: "Find files and directories by glob pattern under `path`. IMPORTANT: patterns are matched against paths RELATIVE to `path`, and a pattern WITHOUT '**/' only matches entries directly inside `path`, not in subdirectories. To search all subdirectories, start the pattern with '**/', e.g. '**/*.json' or '**/*invoice*'. Matching is on names, not file contents. Returns full paths of all matches. Only searches within allowed directories."
+      list_directory: "Get a detailed listing of all files and directories in a specified path. Results clearly distinguish between files and directories with [FILE] and [DIR] prefixes. This tool is essential for understanding directory structure and finding specific files within a directory. Only works within allowed directories."
+      directory_tree: "Get a recursive tree view of files and directories as a JSON structure. Each entry includes 'name', 'type' (file/directory), and 'children' for directories. Files have no children array, while directories always have a children array (which may be empty). The output is formatted with 2-space indentation for readability. Only works within allowed directories."
+      get_file_info: "Retrieve detailed metadata about a file or directory. Returns comprehensive information including size, creation time, last modified time, permissions, and type. This tool is perfect for understanding file characteristics without reading the actual content. Only works within allowed directories."
+
+  - name: v2.0.0-with-2.3.0-descriptions
+    description: 2.0.0 schemas, 2.3.0 descriptions for the other tools, our search_files text.
+    server:
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem@2.0.0", "{root}"]
+      label: npm server-filesystem@2.0.0 + 2.3.0 descriptions
+    description_overrides:
+      search_files: "Find files and directories by glob pattern under `path`. IMPORTANT: patterns are matched against paths RELATIVE to `path`, and a pattern WITHOUT '**/' only matches entries directly inside `path`, not in subdirectories. To search all subdirectories, start the pattern with '**/', e.g. '**/*.json' or '**/*invoice*'. Matching is on names, not file contents. Returns full paths of all matches. Only searches within allowed directories."
+      list_directory: "List the files and directories directly inside a path, each marked [FILE] or [DIR]. Use it to see what a directory contains; when you also need each entry's size or want entries sorted by size, use list_directory_with_sizes instead, and for a recursive view use directory_tree. Returns one line per entry. Only works within allowed directories."
+      directory_tree: "Get a recursive tree view of files and directories as a JSON structure. Each entry includes 'name', 'type' (file/directory), and 'children' for directories. Files have no children array, while directories always have a children array (which may be empty), except at the last level when 'depth' limits the tree: those directories are not read and have no children array. The output is formatted with 2-space indentation for readability. Only works within allowed directories."
+      get_file_info: "Retrieve detailed metadata about a file or directory. Returns comprehensive information including size, creation time, last modified time, permissions, type and hard-link count. This tool is perfect for understanding file characteristics without reading the actual content. Only works within allowed directories."
+
+tasks:
+  - id: shipping_cost_a17
+    prompt: >-
+      What is the shipping cost in USD for order A17? The order data and the shipping rates
+      are in the files you can access.
+    checks:
+      - {type: answer_number, expected: 12.5}
+
+  - id: order_status_b42
+    prompt: What is the current status of order B42?
+    checks:
+      - {type: answer_contains, expected: processing}
+
+  - id: order_count
+    prompt: How many orders are there in total?
+    checks:
+      - {type: answer_regex, pattern: '(?i)\b(2|two)\b'}
+
+  - id: heaviest_order_customer
+    prompt: Which customer placed the heaviest order?
+    checks:
+      - {type: answer_contains, expected: Asha}

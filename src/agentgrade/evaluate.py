@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agentgrade.checks import CheckOutcome, evaluate_check
 from agentgrade.classify import Category, Signals, classify
@@ -127,10 +127,12 @@ class SuiteResult(BaseModel):
     started_at: str
     finished_at: str
     model: dict[str, Any]
-    server: dict[str, Any]
+    server: dict[str, Any]  # the first run's server (all of them, unless variants override it)
     environment: dict[str, Any]
     config: dict[str, Any]  # the full suite as run (variants, tasks, checks)
     runs: list[RunSummary]
+    # Per variant, when variants run different server builds (ServerOverride). Empty otherwise.
+    servers: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 async def run_suite(
@@ -156,6 +158,8 @@ async def run_suite(
     model_info = await describe_model() if describe_model else {}
     model_info = {**suite.model.model_dump(), **model_info}
     server_info: dict[str, Any] = {}
+    servers: dict[str, dict[str, Any]] = {}
+    overridden = any(v.server is not None for v in variants)
 
     runs: list[RunSummary] = []
     for variant in variants:
@@ -165,6 +169,9 @@ async def run_suite(
                     suite, variant, task, repeat, model_factory, out_dir, environment, model_info
                 )
                 server_info = server_info or info
+                if overridden and info and variant.name not in servers:
+                    label = variant.server.label if variant.server else None
+                    servers[variant.name] = {**info, "label": label}
                 runs.append(summary)
                 if on_run:
                     on_run(summary)
@@ -179,6 +186,7 @@ async def run_suite(
         environment=environment,
         config=suite.model_dump(mode="json"),
         runs=runs,
+        servers=servers,
     )
     (out_dir / "results.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
     return result, out_dir
@@ -209,10 +217,11 @@ async def _run_one(
         else:
             root.mkdir()
         await run_setup(suite.server.setup, root, server_log)
+        launch = suite.server_for(variant)  # a variant may run a different server build
         server = McpServerConfig(
             name=suite.name,
-            command=suite.server.command,
-            args=[a.replace(ROOT_PLACEHOLDER, str(root)) for a in suite.server.args],
+            command=launch.command,
+            args=[a.replace(ROOT_PLACEHOLDER, str(root)) for a in launch.args],
             timeout_s=suite.server.timeout_s,
             stderr_log=server_log,
         )

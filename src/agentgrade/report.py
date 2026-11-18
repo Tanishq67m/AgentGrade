@@ -78,9 +78,16 @@ def render_report(result: SuiteResult) -> str:
     else:
         identity = f"digest `{(model.get('digest') or 'unknown')[:12]}`"
     add(f"| Model | `{model.get('name')}` ({identity}, temperature {model.get('temperature')}) |")
-    add(
-        f"| Server | {server.get('server_name')} {server.get('server_version')} (protocol {server.get('protocol_version')}) |"
-    )
+    if result.servers:  # variants ran different server builds (ServerOverride)
+        builds = "; ".join(
+            f"**{name}**: {info.get('label') or 'suite server'} ({info.get('server_name')} {info.get('server_version')})"
+            for name, info in result.servers.items()
+        )
+        add(f"| Server builds | {builds} |")
+    else:
+        add(
+            f"| Server | {server.get('server_name')} {server.get('server_version')} (protocol {server.get('protocol_version')}) |"
+        )
     add(
         f"| Runs | {len(result.runs)} = {len(variants)} variant(s) x {len(tasks)} task(s) x {repeats} repeat(s) |"
     )

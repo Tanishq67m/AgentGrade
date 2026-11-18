@@ -3,6 +3,9 @@
 **312 evaluated agent runs on two official MCP servers** (filesystem, git), two models, every answer checked in
 code, every run traced, plus 70 scorings of the same descriptions by a published static grader. Run with [AgentGrade](../README.md), October-November 2026.
 
+> **Version 1.2, 2026-11-18:** adds [Finding 7](#finding-7-a-fix-measured-on-one-version-did-not-survive-the-next),
+> which re-tests the filesystem fix on current main (2.3.0) and corrects the scope of TL;DR 1 and issue #5553.
+>
 > **Version 1.1, 2026-11-18:** adds [Finding 6](#finding-6-a-published-static-score-could-not-see-the-difference),
 > static description scores vs measured behavior.
 >
@@ -16,6 +19,7 @@ code, every run traced, plus 70 scorings of the same descriptions by a published
    examples (`**/*.ext`, `**/name`) for realistic ones (`**/*.json`, `**/*invoice*`) in one tool's description took a
    4B model from **3/12 to 9/12**. With the generic examples it answered "I don't have access to any database"
    without calling a tool. Precise matching rules alone fixed *searching*, but not that refusal.
+   **Measured on server 2.0.0.** On 2.3.0 the effect mostly disappears (Finding 7).
 2. **The tool description is the highest-leverage fix.** Rewriting one tool's description raised a small model's
    pass rate from **1/12 to 9/12** on the filesystem server (the 9/12 reproduced in three separate runs), and from
    **13/15 to 15/15** on the git server (measured once so far).
@@ -37,6 +41,11 @@ code, every run traced, plus 70 scorings of the same descriptions by a published
    **A**, while measured pass rates ran from **8% to 75%**. The rank correlation was **-0.09** (and +0.20 with a
    second judge). The 3/12 and 9/12 descriptions got **the same score (3.92)**. Static scoring did flag the
    one-line `git_log` description (C vs A), so it catches *missing* information, not *misleading* information.
+
+8. **A fix measured on one server version didn't survive the next.** On filesystem 2.3.0, a community patch
+   adding realistic examples scored 2/12 (main: 1/24), and our own 9/12 description scored only 4/12. A 2×2
+   showed the new parameter-schema text and the reworded descriptions of other tools each cost a little.
+   On git, the community patch for `git_log` held: 15/15 vs main's 14/15.
 
 These are findings about the specific setups below, not universal laws. See [Limitations](#limitations).
 
@@ -225,6 +234,55 @@ did not track behavior *here*. It doesn't show it never does. Reports:
 [20B](../results/2026-11-18-static-tdqs-filesystem-gpt-oss-20b.md),
 [git](../results/2026-11-17-static-tdqs-git-gpt-oss-120b.md).
 
+## Finding 7: a fix measured on one version did not survive the next
+
+**Context.** Both upstream issues were triaged into the v2.6.0 milestone, and a contributor posted a patch for
+both (fork commit `b3c9386b`). AgentGrade can now run a variant against a different server **build**
+([ADR 0017](decisions/0017-measure-proposed-patches.md)), so we measured the real patched code against its
+parent commit `e1d154ee` before it merges. Same model (digest `0edcdef34593`, the same as all earlier runs),
+same tasks.
+
+**Filesystem 2.3.0: the examples fix no longer works.**
+
+| `search_files` on 2.3.0 | Passed |
+|---|---|
+| main | 1/24 (two runs) |
+| patch as built: realistic examples added after the generic ones, in the description and the `pattern` parameter | 2/12 |
+| patch with user-data examples (`**/*invoice*`) instead | 2/12 |
+| patch with its first sentence ("never reads or searches inside files") softened | 0/12 |
+| main + our description (9/12 on 2.0.0) | 4/12 |
+
+What changed between 2.0.0 and 2.3.0, apart from `search_files`: every parameter gained a long description
+(`search_files`' schema grew from 141 to 789 characters, and "must resolve inside the allowed directories"
+appears on every `path`), and `list_directory`, `directory_tree` and `get_file_info` were reworded. A 2×2,
+with override texts copied verbatim from both servers and our description in every cell:
+
+| | 2.0.0 descriptions (other tools) | 2.3.0 descriptions (other tools) |
+|---|---|---|
+| **2.0.0 input schemas** | 7/12 (control; pooled with earlier runs 25/36) | 6/12 |
+| **2.3.0 input schemas** | 5/12 | 4/12 |
+
+Both changes seem to cost a little, the schemas maybe more. At 12 runs per cell the intervals overlap, so we
+don't claim more than that. One task, `order_status_b42`, was refused in every run of every cell, on both
+versions.
+
+**Git 2026.11.11: the patch held.** Main 14/15. Its one failure was the exact bug from #5552 ("the commit
+history is empty"). The patch got 15/15, and our issue's wording got 15/15. The same task failed 6/6 on 2026.10.10, so
+the newer server already does better, and 15 runs can't show a significant gain.
+
+**What this means.**
+- A description fix is a property of the **whole tool list the model sees**, not of one sentence. Unrelated
+  edits elsewhere (parameter docs, sibling tools) can cancel it.
+- Our own issue overstated how general the fix was. We corrected it on the issue with the data
+  ([comments](upstream/2026-11-18-patch-check.md)).
+- This is the case for re-measuring on every release, the way tests are re-run. A fix verified once can
+  silently stop working.
+
+Reports: [patch](../results/2026-11-18-pr5553-filesystem-1-patch.md),
+[follow-up](../results/2026-11-18-pr5553-filesystem-2-followup.md),
+[2×2](../results/2026-11-18-pr5553-filesystem-3-schemas-vs-descriptions.md),
+[git](../results/2026-11-18-pr5552-git-patch.md).
+
 ## What this means for MCP server authors
 
 *(Findings 1 and 2 were filed as [#5553](https://github.com/modelcontextprotocol/servers/issues/5553) and
@@ -233,7 +291,8 @@ did not track behavior *here*. It doesn't show it never does. Reports:
 1. **State exact semantics in the tool description**: matching rules, defaults, ordering, which parameters are
    optional. Agents take descriptions literally, and small models can't recover from ambiguity.
 2. **Use realistic examples, not placeholders.** `'**/*.json'` or `'**/*invoice*'` told a small model there was
-   user data to look for; `'*.ext'` didn't (9/12 vs 3/12). Expect models to copy examples literally.
+   user data to look for; `'*.ext'` didn't (9/12 vs 3/12 on 2.0.0; on 2.3.0 examples alone were not enough, Finding 7).
+   Expect models to copy examples literally.
 3. **Never return a bare empty result.** Say what was searched and how to widen it:
    *"No matches. Patterns are relative to `path`; use `**/` for subfolders."*
    *"No commits in this time range; omit the timestamps to see the latest commits."*
@@ -246,6 +305,8 @@ did not track behavior *here*. It doesn't show it never does. Reports:
 7. **Treat a description-quality grade as a lint, not a test.** It will catch a missing explanation. It won't
    catch an example that makes a small model give up. All six of our filesystem descriptions got an A.
    Measured, they ranged from 8% to 75%.
+8. **Re-measure after every release.** Our filesystem fix went from 9/12 to 4/12 when other tools' parameter
+   docs and descriptions changed around it (Finding 7).
 
 ## Limitations
 

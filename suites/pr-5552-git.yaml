@@ -1,0 +1,91 @@
+# Measures a PROPOSED upstream fix before it is merged.
+# modelcontextprotocol/servers#5552: a community patch (shivamm-gupta, fork commit b3c9386b)
+# rewrites git_log's description and its timestamp parameters ("newest first", "optional, leave
+# empty to show recent commits"). Here it runs against the commit it is based on
+# (e1d154ee, mcp-server-git 2026.11.11). Same model, tasks and fixture as suites/git.yaml.
+#
+# Every variant gives the agent the repository path (like git.yaml's repo-path-given), so
+# repo_path errors don't hide git_log behavior. Builds: see suites/pr-5553-filesystem.yaml
+# (the same two checkouts; the git server needs no build step). Then:
+#   uv run agentgrade run suites/pr-5552-git.yaml
+
+name: pr-5552-git
+description: git_log on mcp-server-git main vs the proposed #5552 patch, real builds.
+
+model:
+  provider: ollama
+  name: qwen3:4b-instruct
+  temperature: 0.7
+
+server:   # main (the patch's parent commit); the patch variant swaps in the patched source
+  command: uvx
+  args: ["--from", "{suite_dir}/../.targets/servers-main/src/git", "mcp-server-git", "--repository", "{root}"]
+  setup:
+    - ["{python}", "{suite_dir}/../fixtures/git_repo/build_repo.py", "{root}"]
+  timeout_s: 180   # the first run of each build installs its dependencies
+
+tools:   # read-only, same as suites/git.yaml
+  - git_status
+  - git_diff_unstaged
+  - git_diff_staged
+  - git_diff
+  - git_log
+  - git_show
+  - git_branch
+
+max_steps: 10
+repeats: 3
+
+variants:
+  - name: main-2026.11.11
+    description: The server as it is on main today (the patch's parent commit).
+    system_prompt_suffix: The user's git repository is at {root}.
+    server:
+      label: main e1d154e (mcp-server-git 2026.11.11)
+
+  - name: patch-b3c9386b
+    description: The proposed patch, as built (git_log and its parameter descriptions).
+    system_prompt_suffix: The user's git repository is at {root}.
+    server:
+      args: ["--from", "{suite_dir}/../.targets/pr-5553-5552/src/git", "mcp-server-git", "--repository", "{root}"]
+      label: fork b3c9386b (proposed patch)
+
+  # Reference: the git_log wording we measured at 15/15 on 2026.10.10 (suites/git.yaml,
+  # path-given-clear-log), now on main's build. Tool description only.
+  - name: main-agentgrade-description
+    description: main, with git_log's description replaced by the wording from issue #5552.
+    system_prompt_suffix: The user's git repository is at {root}.
+    server:
+      label: main e1d154e + description override
+    description_overrides:
+      git_log: >-
+        Shows the commit log, newest commit first. To see the latest commits, call it with just
+        repo_path (and optionally max_count). start_timestamp and end_timestamp are OPTIONAL
+        filters for a specific date range - leave them out unless the user asks about particular
+        dates, because a narrow range returns no commits.
+
+tasks:
+  - id: last_commit_author
+    prompt: Who made the most recent commit on the main branch of my project's git repository?
+    checks:
+      - {type: answer_contains, expected: Ben}
+
+  - id: rounding_fix_author
+    prompt: Who fixed the rounding bug in my project?
+    checks:
+      - {type: answer_contains, expected: Chen}
+
+  - id: current_version
+    prompt: What version is my project at, according to the VERSION file in its repository?
+    checks:
+      - {type: answer_contains, expected: "1.1.0"}
+
+  - id: uncommitted_file
+    prompt: Which file in my repository has changes that haven't been committed yet?
+    checks:
+      - {type: answer_contains, expected: README}
+
+  - id: unmerged_branch
+    prompt: Is there a branch in my repository with work that hasn't been merged into main? What is it called?
+    checks:
+      - {type: answer_contains, expected: feature/discounts}

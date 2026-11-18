@@ -78,3 +78,39 @@ def test_the_shipped_shop_suite_is_valid():
 )
 def test_every_shipped_suite_is_valid(path):
     load_suite(path)
+
+
+def test_server_override_replaces_only_command_and_args():
+    suite = make(
+        server={"command": "npx", "args": ["pkg@1", "{root}"], "timeout_s": 90},
+        variants=[
+            {"name": "main"},
+            {"name": "patch", "server": {"command": "node", "args": ["build/index.js", "{root}"]}},
+            {"name": "args-only", "server": {"args": ["pkg@2", "{root}"], "label": "v2"}},
+        ],
+    )
+    main, patch, args_only = suite.variants
+    assert suite.server_for(main) is suite.server
+    p = suite.server_for(patch)
+    assert (p.command, p.args, p.timeout_s) == ("node", ["build/index.js", "{root}"], 90)
+    a = suite.server_for(args_only)
+    assert (a.command, a.args) == ("npx", ["pkg@2", "{root}"])
+    assert suite.server.args == ["pkg@1", "{root}"]  # the suite's own config is untouched
+
+
+def test_server_override_rejects_unknown_keys():
+    with pytest.raises(ValidationError, match="Extra inputs"):
+        make(variants=[{"name": "v", "server": {"fixture": "other"}}])  # only command/args/label
+
+
+def test_load_suite_resolves_suite_dir_in_variant_servers(tmp_path: Path):
+    (tmp_path / "s.yaml").write_text(
+        "name: s\nmodel: {name: m}\nserver: {command: '{suite_dir}/bin/x'}\ntools: [read]\n"
+        "variants: [{name: v, server: {command: '{suite_dir}/y', args: ['{suite_dir}/b', '{root}']}}]\n"
+        "tasks: [{id: t, prompt: p, checks: [{type: answer_contains, expected: hi}]}]\n"
+    )
+    suite = load_suite(tmp_path / "s.yaml")
+    d = str(tmp_path.resolve())
+    assert suite.server.command == f"{d}/bin/x"
+    launch = suite.server_for(suite.variants[0])
+    assert (launch.command, launch.args) == (f"{d}/y", [f"{d}/b", "{root}"])

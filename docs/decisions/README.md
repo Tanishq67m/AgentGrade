@@ -23,5 +23,6 @@ An accepted record is never edited to change the decision - write a new record t
 | [0014](0014-second-server-git.md) | Second server: mcp-server-git, suite `setup` step, deterministic git fixture, server logs to file, `{root}` in prompts | Accepted |
 | [0015](0015-positioning.md) | Positioning: measured "fix and prove" for MCP server authors; CI mode deprioritized | Accepted |
 | [0016](0016-static-vs-measured.md) | Static vs measured: re-implement Glama's TDQS (pinned), score already-measured descriptions, compare | Accepted |
+| [0017](0017-measure-proposed-patches.md) | Variants can run a different server build (`server:`); measure proposed upstream patches on real builds | Accepted |
 
 Template: [TEMPLATE.md](TEMPLATE.md)

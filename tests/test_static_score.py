@@ -415,3 +415,27 @@ def test_load_measured_refuses_mixed_models_and_suites(tmp_path: Path):
 def test_spearman(xs, ys, expected):
     rho = spearman(xs, ys)
     assert rho == expected if expected is None else rho == pytest.approx(expected, abs=1e-4)
+
+
+async def test_static_scoring_snapshots_each_server_build(tmp_path: Path):
+    patched = str(Path(__file__).parent / "fixtures" / "notes_server_patched.py")
+    suite = Suite.model_validate(
+        {
+            **SUITE.model_dump(mode="json", exclude={"variants"}),
+            "variants": [{"name": "main"}, {"name": "patch", "server": {"args": [patched]}}],
+        }
+    )
+    judge = ScriptedModel([reply(judge_json(ALL_FOUR)), reply(judge_json(ALL_FOUR))])
+    scores, info = await score_suite(
+        suite, judge, parse_spec(SPEC, "c"), tmp_path,
+        variants=suite.variants, only_tools=["read_note"], repeats=1,
+    )  # fmt: skip
+    assert [s.description for s in scores] == [
+        "Read one note by name.",
+        "Read one note by its exact name. Call list_notes first to see the names.",
+    ]
+    assert len(judge.received) == 2  # different builds -> different definitions -> both scored
+    assert info["server_name"] == "agentgrade-test-notes"  # the first variant's server
+    patch_defs = json.loads((tmp_path / "tool_definitions.patch.json").read_text())
+    assert {t["name"] for t in patch_defs} == {"list_notes", "read_note"}
+    assert (tmp_path / "tool_definitions.json").is_file()

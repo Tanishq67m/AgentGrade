@@ -33,3 +33,6 @@ Claude outputs/
 .DS_Store
 .idea/
 .vscode/
+
+# Server builds checked out by scripts/build_server_target.sh
+.targets/
