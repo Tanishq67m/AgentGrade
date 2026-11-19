@@ -1,0 +1,89 @@
+# modelcontextprotocol/servers#5610: should repo_path default to the configured --repository?
+# The issue lists options; this measures them on real builds of current v2/main (640a8c3,
+# mcp-server-git 2026.11.18, which already includes the #5626 git_log fix). ADR 0018.
+#
+# No variant tells the agent the repository path: that is the situation the issue is about
+# (a user just asks a question; only the server knows the path). AgentGrade passes a server's
+# `instructions` into the system prompt, as MCP clients do.
+#
+# Build once (git + Node 24; the patched copies come from scripts/patch_git_repo_path.py):
+#   bash scripts/build_5610_targets.sh
+# Then:
+#   uv run agentgrade run suites/repo-path-5610-git.yaml
+
+name: repo-path-5610-git
+description: The #5610 options for repo_path, measured on patched builds of mcp-server-git v2/main.
+
+model:
+  provider: ollama
+  name: qwen3:4b-instruct
+  temperature: 0.7
+
+server:   # current v2/main; each option variant swaps in its patched copy
+  command: uvx
+  args: ["--from", "{suite_dir}/../.targets/v2main-640a8c3/src/git", "mcp-server-git", "--repository", "{root}"]
+  setup:
+    - ["{python}", "{suite_dir}/../fixtures/git_repo/build_repo.py", "{root}"]
+  timeout_s: 180   # the first run of each build installs its dependencies
+
+tools:   # read-only, same as suites/git.yaml
+  - git_status
+  - git_diff_unstaged
+  - git_diff_staged
+  - git_diff
+  - git_log
+  - git_show
+  - git_branch
+
+max_steps: 10
+repeats: 3
+
+variants:
+  - name: today-required
+    description: v2/main as is - repo_path required, undocumented on most tools, no instructions.
+    server:
+      label: v2/main 640a8c3 (repo_path required)
+
+  - name: described
+    description: repo_path stays required; every repo_path description names the allowed repository.
+    server:
+      args: ["--from", "{suite_dir}/../.targets/repo5610-described/src/git", "mcp-server-git", "--repository", "{root}"]
+      label: v2/main + repo_path described
+
+  - name: instructions
+    description: repo_path stays required; the server's instructions name the allowed repository.
+    server:
+      args: ["--from", "{suite_dir}/../.targets/repo5610-instructions/src/git", "mcp-server-git", "--repository", "{root}"]
+      label: v2/main + server instructions
+
+  - name: optional
+    description: repo_path optional on every tool, defaulting to --repository (same open_repo checks).
+    server:
+      args: ["--from", "{suite_dir}/../.targets/repo5610-optional/src/git", "mcp-server-git", "--repository", "{root}"]
+      label: v2/main + repo_path optional
+
+tasks:
+  - id: last_commit_author
+    prompt: Who made the most recent commit on the main branch of my project's git repository?
+    checks:
+      - {type: answer_contains, expected: Ben}
+
+  - id: rounding_fix_author
+    prompt: Who fixed the rounding bug in my project?
+    checks:
+      - {type: answer_contains, expected: Chen}
+
+  - id: current_version
+    prompt: What version is my project at, according to the VERSION file in its repository?
+    checks:
+      - {type: answer_contains, expected: "1.1.0"}
+
+  - id: uncommitted_file
+    prompt: Which file in my repository has changes that haven't been committed yet?
+    checks:
+      - {type: answer_contains, expected: README}
+
+  - id: unmerged_branch
+    prompt: Is there a branch in my repository with work that hasn't been merged into main? What is it called?
+    checks:
+      - {type: answer_contains, expected: feature/discounts}

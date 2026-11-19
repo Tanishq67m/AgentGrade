@@ -1,7 +1,7 @@
 """A "patched build" of notes_server.py for testing server overrides (variant `server:`).
 
-Same notes and tools; only the server name and read_note's description differ, the way a
-proposed upstream patch would change a tool description.
+Same notes and tools; the server name, read_note's description and the server instructions
+differ, the way a proposed upstream patch would change them.
 """
 
 from mcp.server import MCPServer
@@ -12,7 +12,10 @@ NOTES = {
     "todo": "finish AgentGrade M2",
 }
 
-server = MCPServer("agentgrade-test-notes-patched")
+server = MCPServer(
+    "agentgrade-test-notes-patched",
+    instructions="Notes are named by topic, e.g. todo or groceries.",
+)
 
 
 @server.tool(annotations=ToolAnnotations(read_only_hint=True))

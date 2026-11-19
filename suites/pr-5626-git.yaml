@@ -1,0 +1,91 @@
+# Measures the maintainer's PR for #5552 before v2.6.0 ships:
+# modelcontextprotocol/servers#5626 (head 7d246370) vs its base, main 7f383a8e
+# (mcp-server-git 2026.11.18). It rewrites git_log's description and timestamp parameters AND makes
+# a filtered empty history say "No commits match the given start_timestamp/end_timestamp".
+#
+# Two pairs: with the repository path given (isolates git_log, like suites/pr-5552-git.yaml) and
+# without it (the realistic setting; repo_path mistakes are tracked separately in #5610).
+#
+# Build once (the git server needs no build step; the script also builds filesystem):
+#   bash scripts/build_server_target.sh https://github.com/modelcontextprotocol/servers.git 7f383a8e0f34f72b6eb519798633cea5c0769be6 up-main
+#   bash scripts/build_server_target.sh https://github.com/modelcontextprotocol/servers.git 7d246370e0b36482784a19d7aa82929bf210ce97 pr-5626
+# Then:
+#   uv run agentgrade run suites/pr-5626-git.yaml
+
+name: pr-5626-git
+description: git_log on mcp-server-git 2026.11.18 main vs maintainer PR #5626, real builds.
+
+model:
+  provider: ollama
+  name: qwen3:4b-instruct
+  temperature: 0.7
+
+server:   # main (the PR's base); PR variants swap in the PR source
+  command: uvx
+  args: ["--from", "{suite_dir}/../.targets/up-main/src/git", "mcp-server-git", "--repository", "{root}"]
+  setup:
+    - ["{python}", "{suite_dir}/../fixtures/git_repo/build_repo.py", "{root}"]
+  timeout_s: 180   # the first run of each build installs its dependencies
+
+tools:   # read-only, same as suites/git.yaml
+  - git_status
+  - git_diff_unstaged
+  - git_diff_staged
+  - git_diff
+  - git_log
+  - git_show
+  - git_branch
+
+max_steps: 10
+repeats: 3
+
+variants:
+  - name: main-path-given
+    description: main, repository path given to the agent.
+    system_prompt_suffix: The user's git repository is at {root}.
+    server:
+      label: main 7f383a8 (mcp-server-git 2026.11.18)
+
+  - name: pr-5626-path-given
+    description: The PR, repository path given to the agent.
+    system_prompt_suffix: The user's git repository is at {root}.
+    server:
+      args: ["--from", "{suite_dir}/../.targets/pr-5626/src/git", "mcp-server-git", "--repository", "{root}"]
+      label: "PR #5626 7d24637"
+
+  - name: main-no-path
+    description: main, no repository path in the prompt (as a user would ask).
+    server:
+      label: main 7f383a8 (mcp-server-git 2026.11.18)
+
+  - name: pr-5626-no-path
+    description: The PR, no repository path in the prompt.
+    server:
+      args: ["--from", "{suite_dir}/../.targets/pr-5626/src/git", "mcp-server-git", "--repository", "{root}"]
+      label: "PR #5626 7d24637"
+
+tasks:
+  - id: last_commit_author
+    prompt: Who made the most recent commit on the main branch of my project's git repository?
+    checks:
+      - {type: answer_contains, expected: Ben}
+
+  - id: rounding_fix_author
+    prompt: Who fixed the rounding bug in my project?
+    checks:
+      - {type: answer_contains, expected: Chen}
+
+  - id: current_version
+    prompt: What version is my project at, according to the VERSION file in its repository?
+    checks:
+      - {type: answer_contains, expected: "1.1.0"}
+
+  - id: uncommitted_file
+    prompt: Which file in my repository has changes that haven't been committed yet?
+    checks:
+      - {type: answer_contains, expected: README}
+
+  - id: unmerged_branch
+    prompt: Is there a branch in my repository with work that hasn't been merged into main? What is it called?
+    checks:
+      - {type: answer_contains, expected: feature/discounts}

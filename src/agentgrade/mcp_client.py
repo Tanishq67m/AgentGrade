@@ -103,8 +103,15 @@ class McpConnection:
             "server_name": info.name if info else None,
             "server_version": info.version if info else None,
             "protocol_version": self._client.protocol_version,
+            "instructions": self.instructions,
             "tools_offered": self.tool_names(),
         }
+
+    @property
+    def instructions(self) -> str | None:
+        """The server's `instructions` from initialize (None if it sent none)."""
+        text = getattr(self._client, "instructions", None)
+        return text.strip() if isinstance(text, str) and text.strip() else None
 
     def tool_names(self) -> list[str]:
         return [t.name for t in self.tools]

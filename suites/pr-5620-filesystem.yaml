@@ -1,0 +1,86 @@
+# Measures the maintainer's PR for #5553 before v2.6.0 ships:
+# modelcontextprotocol/servers#5620 (head 731abb0a) vs its base, main 7f383a8e
+# (filesystem 2.4.0). It adds realistic examples to search_files AND makes an empty result say
+# what was searched and suggest '**/' (old: a bare "No matches found").
+#
+# Our tasks mostly fail by refusing BEFORE any search (Finding 7), which hides the empty-result
+# hint. So the same pair also runs with one agent-context sentence (suites/shop.yaml
+# agent-context) that gets the model searching: that pair tests the hint.
+#
+# Build once (git + Node 24):
+#   bash scripts/build_server_target.sh https://github.com/modelcontextprotocol/servers.git 7f383a8e0f34f72b6eb519798633cea5c0769be6 up-main
+#   bash scripts/build_server_target.sh https://github.com/modelcontextprotocol/servers.git 731abb0a1ea3e5dc0075c0ff95f0e21a27691b50 pr-5620
+# Then:
+#   uv run agentgrade run suites/pr-5620-filesystem.yaml
+
+name: pr-5620-filesystem
+description: search_files on filesystem 2.4.0 main vs maintainer PR #5620, real builds.
+
+model:
+  provider: ollama
+  name: qwen3:4b-instruct
+  temperature: 0.7
+
+server:   # main (the PR's base); PR variants swap in the PR build
+  command: node
+  args: ["{suite_dir}/../.targets/up-main/src/filesystem/dist/index.js", "{root}"]
+  fixture: ../fixtures/shop
+
+tools:   # read-only allowlist, same as suites/shop.yaml
+  - list_allowed_directories
+  - list_directory
+  - directory_tree
+  - read_text_file
+  - search_files
+  - get_file_info
+
+max_steps: 10
+repeats: 3
+
+variants:
+  - name: main-2.4.0
+    description: The server as it is on main today (the PR's base).
+    server:
+      label: main 7f383a8 (filesystem 2.4.0)
+
+  - name: pr-5620
+    description: The PR as built - realistic examples + descriptive empty result.
+    server:
+      args: ["{suite_dir}/../.targets/pr-5620/src/filesystem/dist/index.js", "{root}"]
+      label: "PR #5620 731abb0"
+
+  - name: main-2.4.0-context
+    description: main, with one agent-context sentence so the model searches (tests the hint fairly).
+    server:
+      label: main 7f383a8 (filesystem 2.4.0)
+    system_prompt_suffix: "Your tools give you access to the user's data. Before saying that information is unavailable, explore with the tools to check."
+
+  - name: pr-5620-context
+    description: The PR, with the same agent-context sentence.
+    server:
+      args: ["{suite_dir}/../.targets/pr-5620/src/filesystem/dist/index.js", "{root}"]
+      label: "PR #5620 731abb0"
+    system_prompt_suffix: "Your tools give you access to the user's data. Before saying that information is unavailable, explore with the tools to check."
+
+tasks:
+  - id: shipping_cost_a17
+    prompt: >-
+      What is the shipping cost in USD for order A17? The order data and the shipping rates
+      are in the files you can access.
+    checks:
+      - {type: answer_number, expected: 12.5}
+
+  - id: order_status_b42
+    prompt: What is the current status of order B42?
+    checks:
+      - {type: answer_contains, expected: processing}
+
+  - id: order_count
+    prompt: How many orders are there in total?
+    checks:
+      - {type: answer_regex, pattern: '(?i)\b(2|two)\b'}
+
+  - id: heaviest_order_customer
+    prompt: Which customer placed the heaviest order?
+    checks:
+      - {type: answer_contains, expected: Asha}

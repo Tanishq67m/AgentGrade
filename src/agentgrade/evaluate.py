@@ -61,11 +61,18 @@ def fill(text: str, root: Path) -> str:
     return text.replace(ROOT_PLACEHOLDER, str(root)).replace(PYTHON_PLACEHOLDER, sys.executable)
 
 
-def system_prompt_for(variant: Variant, root: Path | None = None) -> str:
+def system_prompt_for(
+    variant: Variant, root: Path | None = None, server_instructions: str | None = None
+) -> str:
+    """The agent's system prompt: default + server instructions (if the server sent any,
+    as MCP clients do) + the variant's agent-side suffix."""
+    prompt = DEFAULT_SYSTEM_PROMPT
+    if server_instructions:
+        prompt += f"\n\nInstructions from the MCP server:\n{server_instructions.strip()}"
     if variant.system_prompt_suffix:
         suffix = variant.system_prompt_suffix.strip()
-        return f"{DEFAULT_SYSTEM_PROMPT}\n\n{fill(suffix, root) if root else suffix}"
-    return DEFAULT_SYSTEM_PROMPT
+        prompt += f"\n\n{fill(suffix, root) if root else suffix}"
+    return prompt
 
 
 async def run_setup(commands: list[list[str]], root: Path, log: Path) -> None:
@@ -239,7 +246,7 @@ async def _run_one(
                         model,
                         registry,
                         fill(task.prompt, root),
-                        system_prompt=system_prompt_for(variant, root),
+                        system_prompt=system_prompt_for(variant, root, conn.instructions),
                         limits=RunLimits(max_steps=suite.max_steps_for(task)),
                         trace=trace,
                         metadata={

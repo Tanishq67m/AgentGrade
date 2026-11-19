@@ -308,6 +308,13 @@ async def test_a_variant_can_run_a_different_server_build(tmp_path: Path):
         "main": "Read one note by name.",
         "patch": "Read one note by its exact name. Call list_notes first to see the names.",
     }
+    # server instructions reach the model like an MCP client passes them (only the patch sends any)
+    system = {name: m.received[0][0].content for name, m in models.items()}
+    assert "Instructions from the MCP server" not in system["main"]
+    assert system["patch"].endswith(
+        "Instructions from the MCP server:\nNotes are named by topic, e.g. todo or groceries."
+    )
+    assert result.servers["patch"]["instructions"].startswith("Notes are named by topic")
     assert result.servers["main"]["server_name"] == "agentgrade-test-notes"
     assert result.servers["main"]["label"] is None
     assert result.servers["patch"]["server_name"] == "agentgrade-test-notes-patched"
@@ -326,3 +333,16 @@ async def test_suites_without_server_overrides_record_no_per_variant_servers(tmp
     result, _ = await run_suite(SUITE, factory, tmp_path, repeats=1)
     assert result.servers == {}
     assert "| Server | agentgrade-test-notes" in render_report(result)
+
+
+def test_system_prompt_puts_server_instructions_before_the_variant_suffix():
+    from agentgrade.evaluate import DEFAULT_SYSTEM_PROMPT, system_prompt_for
+    from agentgrade.suite import Variant
+
+    v = Variant(name="v", system_prompt_suffix="Repo is at {root}.")
+    prompt = system_prompt_for(v, Path("/r"), "Use repo /r.")
+    assert prompt == (
+        f"{DEFAULT_SYSTEM_PROMPT}\n\nInstructions from the MCP server:\nUse repo /r."
+        "\n\nRepo is at /r."
+    )
+    assert system_prompt_for(Variant(name="b"), None, None) == DEFAULT_SYSTEM_PROMPT
