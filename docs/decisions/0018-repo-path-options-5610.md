@@ -31,3 +31,9 @@ community comment argues for "always optional" on reasoning alone. Nobody has me
 - AgentGrade validates arguments against the input schema before calling the server, so a missing
   `repo_path` comes back as `invalid_arguments` rather than the server's Pydantic error. The agent sees an
   error in both cases.
+
+## Outcome (2026-11-19)
+Today 9/15, described 12/15, instructions 15/15, optional 15/15 (Fisher p ≈ 0.02 today vs the two winners,
+and not significant between options). Instructions removed every path error. Optional was fastest (9s median), and
+the model still sent `repo_path` on 20/23 calls but recovered from wrong guesses via the existing error message.
+Comment: [docs/upstream/2026-11-19-repo-path-5610.md](../upstream/2026-11-19-repo-path-5610.md).

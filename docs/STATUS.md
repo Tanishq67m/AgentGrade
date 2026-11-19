@@ -7,8 +7,9 @@ _Last updated: 2026-11-18 (patch check)_
 `v2/main`: #5626 (git_log wording + empty-result hint, both from #5552) and #5620 (filesystem examples +
 descriptive empty result). They ship in v2.6.0. Measured #5620 on 2.4.0: main 0/12, PR 2/12. Refusing before
 any tool call is still 9/12, and the new empty-result hint was barely exercised (agents already use `**/`).
-Now: **#5610**, deciding whether `repo_path` should default to `--repository`. Measuring its options on
-patched builds (ADR 0018, suite `repo-path-5610-git.yaml`).
+**#5610 measured (2026-11-19):** with no path given to the agent, today 9/15, described 12/15, server
+instructions 15/15, optional repo_path 15/15 (9s median vs 35s). Today vs the two winners: Fisher p ≈ 0.02.
+Comment: `docs/upstream/2026-11-19-repo-path-5610.md` (Tanishq posts it).
 
 Previous:
 **Patch check done, 2026-11-18 (Finding 7).** Filesystem 2.3.0: the community patch scored 2/12 (main 1/24).
@@ -77,6 +78,11 @@ identified the active change (results below). Next: M5 (more servers + a stronge
   re-classification, ablation + agent-side variants (ADR 0012). 120 tests passing.
 
 ## Results log
+
+**2026-11-19 - #5610 repo_path options (60 runs, qwen3:4b-instruct, no path in the prompt).** v2/main 640a8c3:
+today-required 9/15 (14 'outside the allowed repository' errors in 33 calls), described 12/15 (0 path errors;
+3x refusal on rounding_fix_author), instructions 15/15 (0 errors), optional 15/15 (4 recovered errors, 3 calls
+without repo_path, median 9.1s). Report: `results/2026-11-19-repo-path-5610-git.md`.
 
 **2026-11-19 - merged PR #5620 vs main, filesystem 2.4.0 (48 runs, qwen3:4b-instruct).** main 0/12, PR 2/12;
 with the agent-context sentence both 0/12. gave_up 9-11/12 in every variant; only 2 empty search results in the
@@ -221,6 +227,6 @@ See [decisions/README.md](decisions/README.md) (0001-0016).
 | M6 | Public case study: before/after results + write-up; README results section | Done (case study v1; issues #5552, #5553) |
 | M7a | Static vs measured: TDQS scores vs measured pass rates (ADR 0016) | Done (Finding 6) |
 | M7-patch | Measure the community patch for #5552/#5553 on real builds (ADR 0017) | Done (Finding 7) |
-| M7-5610 | Measure the #5610 repo_path options (optional / described / instructions) on patched builds | In progress |
+| M7-5610 | Measure the #5610 repo_path options (optional / described / instructions) on patched builds | Done |
 | M7b | `agentgrade improve`: generate description rewrites, run them as variants, recommend the measured winner | Next |
 | Later | Generated tasks / ready-made suites, CI mode, public index, HTML report, paid model adapters, container isolation | - |

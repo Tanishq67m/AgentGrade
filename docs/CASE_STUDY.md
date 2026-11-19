@@ -3,6 +3,8 @@
 **312 evaluated agent runs on two official MCP servers** (filesystem, git), two models, every answer checked in
 code, every run traced, plus 70 scorings of the same descriptions by a published static grader. Run with [AgentGrade](../README.md), October-November 2026.
 
+> **Version 1.3, 2026-11-19:** adds [Finding 8](#finding-8-settling-a-design-question-with-data-5610), the measured options for #5610.
+>
 > **Version 1.2, 2026-11-18:** adds [Finding 7](#finding-7-a-fix-measured-on-one-version-did-not-survive-the-next),
 > which re-tests the filesystem fix on current main (2.3.0) and corrects the scope of TL;DR 1 and issue #5553.
 >
@@ -282,6 +284,25 @@ Reports: [patch](../results/2026-11-18-pr5553-filesystem-1-patch.md),
 [follow-up](../results/2026-11-18-pr5553-filesystem-2-followup.md),
 [2×2](../results/2026-11-18-pr5553-filesystem-3-schemas-vs-descriptions.md),
 [git](../results/2026-11-18-pr5552-git-patch.md).
+
+## Finding 8: settling a design question with data (#5610)
+
+After #5552 and #5553 were fixed and merged (PRs #5626 and #5620, v2.6.0), the maintainer opened
+[#5610](https://github.com/modelcontextprotocol/servers/issues/5610): should `repo_path` default to the configured
+`--repository`? We built each option from that issue on current `v2/main` and measured them with **no path
+given to the agent** ([ADR 0018](decisions/0018-repo-path-options-5610.md)):
+
+| Option | Passed | Path errors | Median time |
+|---|---|---|---|
+| today (required, mostly undescribed) | 9/15 | 14 of 33 calls | 35s |
+| `repo_path` described with the allowed repository | 12/15 | 0 | 24s |
+| server `instructions` name the repository | **15/15** | 0 | 22s |
+| `repo_path` optional, defaulting to `--repository` | **15/15** | 4 (recovered) | **9s** |
+
+Today vs the two winners is significant even at n = 15 (Fisher p ≈ 0.02); the options among themselves are not.
+A model that can't see the one valid value of a required parameter guesses (`"."`), and an error that
+names the right value is what lets it recover.
+[Report](../results/2026-11-19-repo-path-5610-git.md).
 
 ## What this means for MCP server authors
 
