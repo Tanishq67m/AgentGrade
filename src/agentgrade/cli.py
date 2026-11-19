@@ -1,5 +1,6 @@
 """`agentgrade` command line.
 
+agentgrade init my-evals            # copy the example suites, fixtures and model configs
 uv run agentgrade run suites/shop.yaml
 uv run agentgrade run suites/shop.yaml --repeats 5 --variants baseline,clear-search-description
 uv run agentgrade static-score suites/shop.yaml --judge model_configs/judge-groq-gpt-oss-120b.yaml
@@ -13,7 +14,9 @@ import os
 import sys
 from pathlib import Path
 
+from agentgrade import __version__
 from agentgrade.evaluate import FATAL_ERRORS, RunSummary, run_suite
+from agentgrade.examples import copy_examples
 from agentgrade.mcp_client import McpError
 from agentgrade.models.factory import build_model
 from agentgrade.report import load_results, reclassify, write_report
@@ -171,9 +174,29 @@ async def _static(args: argparse.Namespace) -> int:
     return 0
 
 
+def _init(args: argparse.Namespace) -> int:
+    try:
+        suites = copy_examples(args.dir)
+    except FileExistsError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+    print(f"Example suites copied to {args.dir}/:")
+    for suite in suites:
+        print(f"  {suite}")
+    print(
+        "\nNext (needs Ollama with qwen3:4b-instruct, and Node or uv for the servers):\n"
+        f"  cd {args.dir}\n"
+        "  agentgrade run suites/shop.yaml --repeats 1"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agentgrade", description=__doc__.split("\n")[0])
+    parser.add_argument("--version", action="version", version=f"agentgrade {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
+    ini = sub.add_parser("init", help="copy the example suites, fixtures and model configs")
+    ini.add_argument("dir", type=Path, nargs="?", default=Path("agentgrade-examples"))
     run = sub.add_parser("run", help="run an evaluation suite")
     run.add_argument("suite", type=Path)
     run.add_argument("--repeats", type=int, help="override the suite's repeats")
@@ -201,6 +224,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     load_dotenv(Path(".env"))
     try:
+        if args.command == "init":
+            return _init(args)
         if args.command == "report":
             return _report(args)
         if args.command == "static-score":

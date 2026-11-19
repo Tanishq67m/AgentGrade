@@ -1,5 +1,9 @@
 # AgentGrade
 
+[![CI](https://github.com/Tanishq67m/AgentGrade/actions/workflows/ci.yml/badge.svg)](https://github.com/Tanishq67m/AgentGrade/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/agentgrade-mcp)](https://pypi.org/project/agentgrade-mcp/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 **Reliability testing for AI agents and MCP servers.**
 
 *Static graders guess. AgentGrade measures which line of your tool description breaks agents, and
@@ -10,7 +14,10 @@ helped. AgentGrade runs an agent on defined tasks against a real **MCP server**,
 checks each answer **in code** (no model grades another model), classifies every failure from a full
 execution trace, and compares variants **before and after a change**.
 
-> **Status:** early development. Two official MCP servers evaluated so far (312 runs).
+> **Status:** early development, 570+ measured agent runs on official MCP servers. Two upstream issues it found
+> ([#5552](https://github.com/modelcontextprotocol/servers/issues/5552), [#5553](https://github.com/modelcontextprotocol/servers/issues/5553))
+> were fixed and merged for v2.6.0, and its measurements are informing the design question
+> [#5610](https://github.com/modelcontextprotocol/servers/issues/5610).
 > **Read the findings: [docs/CASE_STUDY.md](docs/CASE_STUDY.md).** Project overview: [docs/PROJECT.md](docs/PROJECT.md).
 
 ## The problems it targets
@@ -27,7 +34,21 @@ Who it's for: first, **MCP server authors**. They don't control which agent or m
 they need to see where models (small ones included) struggle with their tools. Also teams that need evidence
 before putting an agent into a real workflow, or before switching to a smaller, cheaper model.
 
-## Quick start
+## Install
+
+```bash
+uv tool install agentgrade-mcp      # or: pip install agentgrade-mcp
+agentgrade init my-evals             # copies example suites, fixtures and model configs
+cd my-evals
+ollama pull qwen3:4b-instruct
+agentgrade run suites/shop.yaml --repeats 1
+```
+
+The PyPI package is **`agentgrade-mcp`** (an unrelated project already uses the name `agentgrade`). The
+command is `agentgrade`. Running the example servers needs [Ollama](https://ollama.com), Node.js 24+
+(filesystem and memory servers) and [uv](https://docs.astral.sh/uv/) (git and time servers).
+
+## Quick start (from source)
 
 Requires [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com), Node.js 24+ (filesystem MCP server) and git (git MCP server).
 

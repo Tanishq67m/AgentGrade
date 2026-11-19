@@ -1,11 +1,24 @@
 [project]
-name = "agentgrade"
-version = "0.0.1"
-description = "Evaluate whether AI agents can successfully use a product through its MCP server."
+# PyPI distribution name: "agentgrade" belongs to an unrelated project. The import package and the
+# command are still `agentgrade`.
+name = "agentgrade-mcp"
+dynamic = ["version"]  # from src/agentgrade/__init__.py
+description = "Measure whether AI agents can actually use an MCP server: repeated runs, checked answers, traces, and A/B tests of tool descriptions and server builds."
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Tanishq Mohod" }]
+keywords = ["mcp", "model-context-protocol", "ai-agents", "evaluation", "llm", "testing", "tool-use"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "httpx>=0.27",
     "jsonschema>=4.23",
@@ -16,6 +29,13 @@ dependencies = [
 
 [project.scripts]
 agentgrade = "agentgrade.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Tanishq67m/AgentGrade"
+Repository = "https://github.com/Tanishq67m/AgentGrade"
+Issues = "https://github.com/Tanishq67m/AgentGrade/issues"
+"Case study" = "https://github.com/Tanishq67m/AgentGrade/blob/main/docs/CASE_STUDY.md"
+Changelog = "https://github.com/Tanishq67m/AgentGrade/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
@@ -28,8 +48,28 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "src/agentgrade/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentgrade"]
+
+# `agentgrade init` copies these into a folder of the user's choice. They keep the repo's layout
+# (suites/ next to fixtures/), so the suites' relative paths still work.
+[tool.hatch.build.targets.wheel.force-include]
+"suites/shop.yaml" = "agentgrade/examples/suites/shop.yaml"
+"suites/git.yaml" = "agentgrade/examples/suites/git.yaml"
+"suites/memory.yaml" = "agentgrade/examples/suites/memory.yaml"
+"suites/sqlite.yaml" = "agentgrade/examples/suites/sqlite.yaml"
+"suites/time.yaml" = "agentgrade/examples/suites/time.yaml"
+"fixtures/shop" = "agentgrade/examples/fixtures/shop"
+"fixtures/git_repo" = "agentgrade/examples/fixtures/git_repo"
+"fixtures/shop_sqlite" = "agentgrade/examples/fixtures/shop_sqlite"
+"fixtures/team_memory" = "agentgrade/examples/fixtures/team_memory"
+"model_configs" = "agentgrade/examples/model_configs"
+
+[tool.hatch.build.targets.sdist]
+exclude = [".targets", "runs", ".venv", "node_modules"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

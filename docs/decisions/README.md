@@ -25,5 +25,6 @@ An accepted record is never edited to change the decision - write a new record t
 | [0016](0016-static-vs-measured.md) | Static vs measured: re-implement Glama's TDQS (pinned), score already-measured descriptions, compare | Accepted |
 | [0017](0017-measure-proposed-patches.md) | Variants can run a different server build (`server:`); measure proposed upstream patches on real builds | Accepted |
 | [0018](0018-repo-path-options-5610.md) | Measure the #5610 `repo_path` options on patched builds; AgentGrade forwards server `instructions` to the agent | Accepted |
+| [0019](0019-pypi-release-and-ci.md) | Publish as `agentgrade-mcp` (PyPI Trusted Publishing), `agentgrade init` with bundled examples, CI on every push | Accepted |
 
 Template: [TEMPLATE.md](TEMPLATE.md)

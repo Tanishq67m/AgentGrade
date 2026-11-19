@@ -3,6 +3,11 @@
 _Last updated: 2026-11-18 (patch check)_
 
 ## Current objective
+**Release 0.1.0 (ADR 0019), 2026-11-19.** PyPI name `agentgrade-mcp` (`agentgrade` is taken), `agentgrade init`
+with bundled examples, CI on every push, tag-triggered release with Trusted Publishing. Next: first
+third-party MCP server evaluated with AgentGrade.
+
+Previous:
 **#5552 and #5553 closed as fixed (2026-11-19).** Maintainer PRs built from our reports were merged into
 `v2/main`: #5626 (git_log wording + empty-result hint, both from #5552) and #5620 (filesystem examples +
 descriptive empty result). They ship in v2.6.0. Measured #5620 on 2.4.0: main 0/12, PR 2/12. Refusing before
